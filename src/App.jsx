@@ -262,6 +262,20 @@ function MapFocus({ selectedRow }) {
   return null
 }
 
+function UserLocationFocus({ userLocation }) {
+  const map = useMap()
+
+  useEffect(() => {
+    if (userLocation) {
+      map.flyTo([userLocation.lat, userLocation.lng], 15, {
+        duration: 0.75,
+      })
+    }
+  }, [map, userLocation])
+
+  return null
+}
+
 function useDeviceMode() {
   const [isMobile, setIsMobile] = useState(() =>
     typeof window === 'undefined' ? false : window.matchMedia(MOBILE_QUERY).matches,
@@ -300,6 +314,9 @@ function App() {
   const [isSaving, setIsSaving] = useState(false)
   const [mobileView, setMobileView] = useState('map')
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false)
+  const [userLocation, setUserLocation] = useState(null)
+  const [locationState, setLocationState] = useState('idle')
+  const [locationError, setLocationError] = useState('')
 
   useEffect(() => {
     async function loadRows() {
@@ -419,6 +436,38 @@ function App() {
   function selectMobileLocation(row) {
     setSelectedId(row.id)
     setMobileView('map')
+  }
+
+  function locateUser() {
+    if (!navigator.geolocation) {
+      setLocationState('error')
+      setLocationError('Locatie wordt niet ondersteund door deze browser.')
+      return
+    }
+
+    setLocationState('loading')
+    setLocationError('')
+    setMobileView('map')
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setUserLocation({
+          accuracy: position.coords.accuracy,
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        })
+        setLocationState('ready')
+      },
+      () => {
+        setLocationState('error')
+        setLocationError('Locatie kon niet worden bepaald. Controleer de locatietoestemming.')
+      },
+      {
+        enableHighAccuracy: true,
+        maximumAge: 30000,
+        timeout: 12000,
+      },
+    )
   }
 
   function updateDraft(name, value) {
@@ -620,6 +669,18 @@ function App() {
             className={`workbench ${isPanelOpen ? 'panel-open' : 'panel-closed'} mobile-${mobileView}`}
           >
             <div className="map-panel" aria-label="Kaart met scholen">
+              <div className="map-actions">
+                <button
+                  type="button"
+                  className="location-button"
+                  onClick={locateUser}
+                  aria-label="Toon mijn locatie op de kaart"
+                  title="Toon mijn locatie"
+                >
+                  {locationState === 'loading' ? 'Locatie zoeken...' : 'Mijn locatie'}
+                </button>
+                {locationError && <span className="location-error">{locationError}</span>}
+              </div>
               {loadState === 'loading' ? (
                 <div className="state-message compact">CSV laden...</div>
               ) : (
@@ -629,6 +690,27 @@ function App() {
                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                   />
                   <MapFocus selectedRow={selectedRow} />
+                  <UserLocationFocus userLocation={userLocation} />
+                  {userLocation && (
+                    <CircleMarker
+                      center={[userLocation.lat, userLocation.lng]}
+                      className="user-location-marker"
+                      pathOptions={{
+                        color: '#1d4ed8',
+                        fillColor: '#60a5fa',
+                        fillOpacity: 0.9,
+                        weight: 3,
+                      }}
+                      radius={10}
+                    >
+                      <Popup>
+                        <strong>Jouw locatie</strong>
+                        <span>
+                          Nauwkeurigheid: circa {Math.round(userLocation.accuracy)} meter
+                        </span>
+                      </Popup>
+                    </CircleMarker>
+                  )}
                   {sortedRows
                     .filter((row) => row.location)
                     .map((row) => (

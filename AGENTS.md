@@ -61,6 +61,7 @@
 - There is no map legend by user request.
 - Every popup and table row has a Google Maps route link.
 - Route link text must stay white in normal, visited, hover, and active states.
+- Map includes a `Mijn locatie` control that uses browser geolocation, centers the map on the user, and displays a blue user-location marker with accuracy in meters.
 
 ## Editing Behavior
 - Desktop: right-click a map marker to open the edit card.
@@ -130,3 +131,4 @@
 - 2026-04-18: Updated Vercel Redis env var support after Upstash integration setup. `api/rows.js` now accepts Vercel KV-style `KV_REST_API_URL` and `KV_REST_API_TOKEN` in addition to `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`. Verified with `npm run lint`, `npm run build`, and direct API handler fallback test returning 40 rows and `ok: true`.
 - 2026-04-18: Added storage diagnostics to `/api/rows` responses. API responses now include booleans for detected Upstash/Vercel KV environment variables so Vercel deployment issues can be diagnosed when `persisted` is `false`. Verified with `npm run lint`, `npm run build`, and a direct API handler test showing storage booleans.
 - 2026-04-18: Expanded Vercel storage diagnostics and Redis config detection for the exact Upstash integration variables visible in Vercel (`REDIS_URL`, `KV_URL`, `KV_REST_API_URL`, `KV_REST_API_TOKEN`, `KV_REST_API_READ_ONLY_TOKEN`). Added `hasWritableRestConfig` so production diagnostics show whether write-capable REST config is available. Verified with `npm run lint`, `npm run build`, and direct API handler diagnostics test.
+- 2026-04-18: Added user geolocation support. The map now has a `Mijn locatie` button that requests browser location permission, centers the map on the user, and shows a blue location marker with accuracy. Verified with `npm run lint` and `npm run build`.

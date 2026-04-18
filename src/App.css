@@ -200,12 +200,52 @@ button:focus-visible {
 
 .map-panel {
   min-height: calc(100vh - 218px);
+  position: relative;
 }
 
 .map {
   height: calc(100vh - 218px);
   min-height: 640px;
   width: 100%;
+}
+
+.map-actions {
+  align-items: flex-start;
+  display: flex;
+  gap: 8px;
+  left: 18px;
+  position: absolute;
+  top: 18px;
+  z-index: 650;
+}
+
+.location-button {
+  background: #0f766e;
+  border: 1px solid #0f766e;
+  border-radius: 8px;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.18);
+  color: #ffffff;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 800;
+  min-height: 42px;
+  padding: 9px 14px;
+}
+
+.location-error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  color: #991b1b;
+  display: inline-flex;
+  font-size: 13px;
+  font-weight: 800;
+  max-width: min(360px, calc(100vw - 180px));
+  padding: 9px 12px;
+}
+
+.user-location-marker {
+  filter: drop-shadow(0 0 10px rgba(37, 99, 235, 0.6));
 }
 
 .leaflet-popup-content {
@@ -704,6 +744,23 @@ tbody tr.selected {
   .state-message.compact {
     height: calc(100dvh - 132px);
     min-height: 420px;
+  }
+
+  .map-actions {
+    bottom: 14px;
+    left: 14px;
+    right: 14px;
+    top: auto;
+  }
+
+  .location-button {
+    flex: 0 0 auto;
+    min-height: 44px;
+  }
+
+  .location-error {
+    flex: 1 1 auto;
+    max-width: none;
   }
 
   .filters:not(.mobile-hidden) + .workbench .map-panel,
