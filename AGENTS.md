@@ -81,7 +81,7 @@
 - Local development saves are written to the Vite devserver via `PUT /api/rows`.
 - Vercel production saves are handled by `api/rows.js`.
 - The devserver persists saved rows in `data/planning-overrides.json`.
-- On Vercel, `api/rows.js` uses Upstash Redis when `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` are configured.
+- On Vercel, `api/rows.js` uses Upstash Redis when either `UPSTASH_REDIS_REST_URL`/`UPSTASH_REDIS_REST_TOKEN` or Vercel KV-style `KV_REST_API_URL`/`KV_REST_API_TOKEN` are configured.
 - Without Upstash Redis, Vercel reads bundled fallback rows from `data/planning-overrides.json`; edits are kept in browser localStorage only.
 - On load, the app reads `GET /api/rows`; if server rows exist, they override the CSV/fallback.
 - Existing `localStorage` data under `zandbak-dashboard-rows` is used only as a fallback/migration source and is pushed to the server if no server rows exist yet.
@@ -113,7 +113,7 @@
 - Keep CSV replaceable and semicolon-delimited.
 - If editing route links, preserve white text in Leaflet popups.
 - If editing persistence, keep `/api/rows` compatible with the serialized row shape from `serializeRows()`.
-- For Vercel deployment with central edit persistence, connect Upstash Redis and set `UPSTASH_REDIS_REST_URL` plus `UPSTASH_REDIS_REST_TOKEN`.
+- For Vercel deployment with central edit persistence, connect Upstash Redis. The current Vercel integration may expose `KV_REST_API_URL` and `KV_REST_API_TOKEN`; these are supported.
 - If changing map/table behavior, run both `npm run lint` and `npm run build`.
 - Keep commits focused and update this changelog before pushing project changes.
 
@@ -127,3 +127,4 @@
 - 2026-04-18: Fixed ESLint configuration to ignore the local `.vite` cache directory. This prevents generated dependency cache files from breaking `npm run lint` after the devserver has run. Verified with `npm run lint`, `npm run build`, and app HTTP `200`.
 - 2026-04-18: Made localStorage-to-server migration non-blocking so an unavailable/stale `/api/rows` endpoint cannot make the app show the generic CSV loading error. This was needed after a devserver was still running with an older Vite config. Restarted devserver and verified app HTTP `200`, CSV HTTP `200`, API HTTP `200` returning JSON, `npm run lint`, and `npm run build`.
 - 2026-04-18: Prepared Vercel deployment support. Added `api/rows.js` as a production serverless API with Upstash Redis support and fallback to bundled `data/planning-overrides.json`, added `vercel.json`, and made failed server saves fall back to browser localStorage instead of losing edits. Verified with `npm run lint`, `npm run build`, and a direct Node handler test where `GET` returned 40 rows and `PUT` returned `ok: true, persisted: false` without Upstash env vars.
+- 2026-04-18: Updated Vercel Redis env var support after Upstash integration setup. `api/rows.js` now accepts Vercel KV-style `KV_REST_API_URL` and `KV_REST_API_TOKEN` in addition to `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`. Verified with `npm run lint`, `npm run build`, and direct API handler fallback test returning 40 rows and `ok: true`.
