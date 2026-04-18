@@ -314,7 +314,7 @@ function App() {
         const parsedRows = serverRows ?? storedRows ?? csvRows
 
         if (!serverRows && storedRows) {
-          await saveRowsToServer(storedRows)
+          saveRowsToServer(storedRows).catch(() => {})
         }
 
         setRows(parsedRows)
