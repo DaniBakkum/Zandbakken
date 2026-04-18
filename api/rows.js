@@ -21,6 +21,15 @@ function getRedisConfig() {
   return url && token ? { token, url: url.replace(/\/$/, '') } : null
 }
 
+function getStorageStatus() {
+  return {
+    hasUpstashUrl: Boolean(process.env.UPSTASH_REDIS_REST_URL),
+    hasUpstashToken: Boolean(process.env.UPSTASH_REDIS_REST_TOKEN),
+    hasKvUrl: Boolean(process.env.KV_REST_API_URL),
+    hasKvToken: Boolean(process.env.KV_REST_API_TOKEN),
+  }
+}
+
 function parseRowsBody(body) {
   if (typeof body === 'string') {
     return JSON.parse(body)
@@ -61,9 +70,14 @@ export default async function handler(request, response) {
       sendJson(response, 200, {
         rows: Array.isArray(redisRows) ? redisRows : await readFallbackRows(),
         persisted: Boolean(redisRows),
+        storage: getStorageStatus(),
       })
     } catch {
-      sendJson(response, 200, { rows: await readFallbackRows(), persisted: false })
+      sendJson(response, 200, {
+        rows: await readFallbackRows(),
+        persisted: false,
+        storage: getStorageStatus(),
+      })
     }
 
     return
@@ -84,12 +98,13 @@ export default async function handler(request, response) {
         sendJson(response, 200, {
           ok: true,
           persisted: false,
+          storage: getStorageStatus(),
           warning: 'Geen Upstash Redis configuratie gevonden; alleen browseropslag is beschikbaar.',
         })
         return
       }
 
-      sendJson(response, 200, { ok: true, persisted: true })
+      sendJson(response, 200, { ok: true, persisted: true, storage: getStorageStatus() })
     } catch {
       sendJson(response, 500, { error: 'Data kon niet worden opgeslagen.' })
     }
