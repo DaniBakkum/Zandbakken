@@ -222,6 +222,8 @@ async function saveRowsToServer(rows) {
   if (!response.ok) {
     throw new Error('Opslaan naar server is mislukt.')
   }
+
+  return response.json()
 }
 
 function getOptionValues(rows, field) {
@@ -436,20 +438,24 @@ function App() {
 
     setIsSaving(true)
     setSaveError('')
+    let serverSaveFailed = false
 
     try {
       await saveRowsToServer(nextRows)
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(serializeRows(nextRows)))
     } catch {
-      setSaveError('Opslaan naar de server is niet gelukt. Controleer of de devserver draait.')
-      setIsSaving(false)
-      return
+      serverSaveFailed = true
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(serializeRows(nextRows)))
+      setSaveError('Serveropslag is niet gelukt; deze wijziging is alleen in deze browser bewaard.')
     }
 
     setRows(nextRows)
     setSelectedId(nextRow.id)
-    setEditDraft(null)
     setIsSaving(false)
+
+    if (!serverSaveFailed) {
+      setEditDraft(null)
+    }
   }
 
   function sortLabel(key) {

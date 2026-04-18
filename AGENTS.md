@@ -17,6 +17,8 @@
 - `src/data/locations.js`: fixed latitude/longitude index keyed by `School|Straatnaam|Plaats`.
 - `public/planning-zandbakken.csv`: replaceable CSV source of truth.
 - `vite.config.js`: includes a small devserver API for persisted row edits.
+- `api/rows.js`: Vercel serverless API for persisted row edits in production.
+- `vercel.json`: Vercel build settings for the Vite app.
 - `data/planning-overrides.json`: server-side saved browser edits, created automatically after the first save.
 
 ## Data Model
@@ -76,9 +78,12 @@
 - Materieel in the edit card is a dropdown.
 - `Esc` closes the edit card.
 - Clicking the overlay outside the edit card closes it.
-- Saves are written to the devserver via `PUT /api/rows`.
+- Local development saves are written to the Vite devserver via `PUT /api/rows`.
+- Vercel production saves are handled by `api/rows.js`.
 - The devserver persists saved rows in `data/planning-overrides.json`.
-- On load, the app reads `GET /api/rows`; if server rows exist, they override the CSV.
+- On Vercel, `api/rows.js` uses Upstash Redis when `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` are configured.
+- Without Upstash Redis, Vercel reads bundled fallback rows from `data/planning-overrides.json`; edits are kept in browser localStorage only.
+- On load, the app reads `GET /api/rows`; if server rows exist, they override the CSV/fallback.
 - Existing `localStorage` data under `zandbak-dashboard-rows` is used only as a fallback/migration source and is pushed to the server if no server rows exist yet.
 - There is currently no export/write-back to the CSV itself.
 
@@ -108,6 +113,7 @@
 - Keep CSV replaceable and semicolon-delimited.
 - If editing route links, preserve white text in Leaflet popups.
 - If editing persistence, keep `/api/rows` compatible with the serialized row shape from `serializeRows()`.
+- For Vercel deployment with central edit persistence, connect Upstash Redis and set `UPSTASH_REDIS_REST_URL` plus `UPSTASH_REDIS_REST_TOKEN`.
 - If changing map/table behavior, run both `npm run lint` and `npm run build`.
 - Keep commits focused and update this changelog before pushing project changes.
 
@@ -120,3 +126,4 @@
 - 2026-04-18: Initialized local git repository, created initial commit, and attempted to push to GitHub. Shell push blocked on missing HTTPS credentials in the non-interactive environment. Added `.vite` to `.gitignore` after Vite generated a local cache during checks.
 - 2026-04-18: Fixed ESLint configuration to ignore the local `.vite` cache directory. This prevents generated dependency cache files from breaking `npm run lint` after the devserver has run. Verified with `npm run lint`, `npm run build`, and app HTTP `200`.
 - 2026-04-18: Made localStorage-to-server migration non-blocking so an unavailable/stale `/api/rows` endpoint cannot make the app show the generic CSV loading error. This was needed after a devserver was still running with an older Vite config. Restarted devserver and verified app HTTP `200`, CSV HTTP `200`, API HTTP `200` returning JSON, `npm run lint`, and `npm run build`.
+- 2026-04-18: Prepared Vercel deployment support. Added `api/rows.js` as a production serverless API with Upstash Redis support and fallback to bundled `data/planning-overrides.json`, added `vercel.json`, and made failed server saves fall back to browser localStorage instead of losing edits. Verified with `npm run lint`, `npm run build`, and a direct Node handler test where `GET` returned 40 rows and `PUT` returned `ok: true, persisted: false` without Upstash env vars.
