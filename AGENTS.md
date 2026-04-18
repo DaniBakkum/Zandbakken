@@ -81,7 +81,7 @@
 - Local development saves are written to the Vite devserver via `PUT /api/rows`.
 - Vercel production saves are handled by `api/rows.js`.
 - The devserver persists saved rows in `data/planning-overrides.json`.
-- On Vercel, `api/rows.js` uses Upstash Redis when either `UPSTASH_REDIS_REST_URL`/`UPSTASH_REDIS_REST_TOKEN` or Vercel KV-style `KV_REST_API_URL`/`KV_REST_API_TOKEN` are configured.
+- On Vercel, `api/rows.js` uses Upstash Redis when either `UPSTASH_REDIS_REST_URL`/`UPSTASH_REDIS_REST_TOKEN` or Vercel KV-style `KV_REST_API_URL`/`KV_REST_API_TOKEN` are configured. Diagnostics also report `KV_URL`, `REDIS_URL`, and `KV_REST_API_READ_ONLY_TOKEN`.
 - Without Upstash Redis, Vercel reads bundled fallback rows from `data/planning-overrides.json`; edits are kept in browser localStorage only.
 - On load, the app reads `GET /api/rows`; if server rows exist, they override the CSV/fallback.
 - Existing `localStorage` data under `zandbak-dashboard-rows` is used only as a fallback/migration source and is pushed to the server if no server rows exist yet.
@@ -129,3 +129,4 @@
 - 2026-04-18: Prepared Vercel deployment support. Added `api/rows.js` as a production serverless API with Upstash Redis support and fallback to bundled `data/planning-overrides.json`, added `vercel.json`, and made failed server saves fall back to browser localStorage instead of losing edits. Verified with `npm run lint`, `npm run build`, and a direct Node handler test where `GET` returned 40 rows and `PUT` returned `ok: true, persisted: false` without Upstash env vars.
 - 2026-04-18: Updated Vercel Redis env var support after Upstash integration setup. `api/rows.js` now accepts Vercel KV-style `KV_REST_API_URL` and `KV_REST_API_TOKEN` in addition to `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`. Verified with `npm run lint`, `npm run build`, and direct API handler fallback test returning 40 rows and `ok: true`.
 - 2026-04-18: Added storage diagnostics to `/api/rows` responses. API responses now include booleans for detected Upstash/Vercel KV environment variables so Vercel deployment issues can be diagnosed when `persisted` is `false`. Verified with `npm run lint`, `npm run build`, and a direct API handler test showing storage booleans.
+- 2026-04-18: Expanded Vercel storage diagnostics and Redis config detection for the exact Upstash integration variables visible in Vercel (`REDIS_URL`, `KV_URL`, `KV_REST_API_URL`, `KV_REST_API_TOKEN`, `KV_REST_API_READ_ONLY_TOKEN`). Added `hasWritableRestConfig` so production diagnostics show whether write-capable REST config is available. Verified with `npm run lint`, `npm run build`, and direct API handler diagnostics test.

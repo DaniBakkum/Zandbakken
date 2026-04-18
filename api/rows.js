@@ -15,8 +15,15 @@ async function readFallbackRows() {
 }
 
 function getRedisConfig() {
-  const url = process.env.UPSTASH_REDIS_REST_URL ?? process.env.KV_REST_API_URL
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN ?? process.env.KV_REST_API_TOKEN
+  const url =
+    process.env.UPSTASH_REDIS_REST_URL ??
+    process.env.KV_REST_API_URL ??
+    process.env.KV_URL ??
+    process.env.REDIS_URL
+  const token =
+    process.env.UPSTASH_REDIS_REST_TOKEN ??
+    process.env.KV_REST_API_TOKEN ??
+    process.env.KV_REST_API_READ_ONLY_TOKEN
 
   return url && token ? { token, url: url.replace(/\/$/, '') } : null
 }
@@ -27,6 +34,13 @@ function getStorageStatus() {
     hasUpstashToken: Boolean(process.env.UPSTASH_REDIS_REST_TOKEN),
     hasKvUrl: Boolean(process.env.KV_REST_API_URL),
     hasKvToken: Boolean(process.env.KV_REST_API_TOKEN),
+    hasKvReadOnlyToken: Boolean(process.env.KV_REST_API_READ_ONLY_TOKEN),
+    hasKvRedisUrl: Boolean(process.env.KV_URL),
+    hasRedisUrl: Boolean(process.env.REDIS_URL),
+    hasWritableRestConfig: Boolean(
+      (process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL) &&
+        (process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN),
+    ),
   }
 }
 
