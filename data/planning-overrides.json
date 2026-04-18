@@ -1,0 +1,602 @@
+[
+  {
+    "id": "0-Kernschool-Wibautstraat 73",
+    "school": "Kernschool",
+    "board": "Zaanprimair",
+    "street": "Wibautstraat 73",
+    "city": "Zaandam",
+    "outgoingRaw": "14,00",
+    "incomingRaw": "15,50",
+    "equipment": "Mobiel",
+    "location": {
+      "lat": 52.43422514,
+      "lng": 4.83965978,
+      "source": "Wibautstraat 73, 1505CB Zaandam"
+    }
+  },
+  {
+    "id": "1-Gouw-Noorderven 6",
+    "school": "Gouw",
+    "board": "Zaanprimair",
+    "street": "Noorderven 6",
+    "city": "Zaandam",
+    "outgoingRaw": "16,00",
+    "incomingRaw": "17,00",
+    "equipment": "Mobiel",
+    "location": {
+      "lat": 52.43948033,
+      "lng": 4.84300673,
+      "source": "Noorderven 6, 1504AL Zaandam"
+    }
+  },
+  {
+    "id": "2-Het Eiland-P.A. Van Meverstraat 1",
+    "school": "Het Eiland",
+    "board": "Zaanprimair",
+    "street": "P.A. Van Meverstraat 1",
+    "city": "Zaandam",
+    "outgoingRaw": "9,00",
+    "incomingRaw": "10,00",
+    "equipment": "Kraan",
+    "location": {
+      "lat": 52.44813395,
+      "lng": 4.79978963,
+      "source": "P.A. van Meverstraat, Zaandam"
+    }
+  },
+  {
+    "id": "3-De Komeet Onderbouw-Neptunuslaan 1",
+    "school": "De Komeet Onderbouw",
+    "board": "Zaanprimair",
+    "street": "Neptunuslaan 1",
+    "city": "Krommenie",
+    "outgoingRaw": "18,00",
+    "incomingRaw": "18,00",
+    "equipment": "Mobiel",
+    "location": {
+      "lat": 52.50039327,
+      "lng": 4.75134335,
+      "source": "Neptunuslaan, Krommenie"
+    }
+  },
+  {
+    "id": "4-Theo Thijssen-Amfibieplein 41, 1525 PA",
+    "school": "Theo Thijssen",
+    "board": "Zaanprimair",
+    "street": "Amfibieplein 41, 1525 PA",
+    "city": "West Knollendam",
+    "outgoingRaw": "4,00",
+    "incomingRaw": "5,00",
+    "equipment": "Mobiel",
+    "location": {
+      "lat": 52.5156069,
+      "lng": 4.78527886,
+      "source": "Amfibieplein, 1525PE Westknollendam"
+    }
+  },
+  {
+    "id": "5-De Mei-Voltastraat 15A",
+    "school": "De Mei",
+    "board": "Zaanprimair",
+    "street": "Voltastraat 15A",
+    "city": "Wormerveer",
+    "outgoingRaw": "7,00",
+    "incomingRaw": "5,00",
+    "equipment": "Mobiel",
+    "location": {
+      "lat": 52.48922613,
+      "lng": 4.79959396,
+      "source": "Voltastraat 15A, 1521TL Wormerveer"
+    }
+  },
+  {
+    "id": "6-Delta-Beemdgras 40, 1567 HP",
+    "school": "Delta",
+    "board": "Zaanprimair",
+    "street": "Beemdgras 40, 1567 HP",
+    "city": "Assendelft",
+    "outgoingRaw": "3,00",
+    "incomingRaw": "4,00",
+    "equipment": "Mobiel",
+    "location": {
+      "lat": 52.4949063,
+      "lng": 4.74528897,
+      "source": "Beemdgras 40, 1567MM Assendelft"
+    }
+  },
+  {
+    "id": "7-De Spiegel-Gibraltar 2, 1503 BM",
+    "school": "De Spiegel",
+    "board": "Zaanprimair",
+    "street": "Gibraltar 2, 1503 BM",
+    "city": "Zaandam",
+    "outgoingRaw": "5,00",
+    "incomingRaw": "5,00",
+    "equipment": "Knijper",
+    "location": {
+      "lat": 52.44586316,
+      "lng": 4.84590058,
+      "source": "Gibraltar, 1503BM Zaandam"
+    }
+  },
+  {
+    "id": "8-Voorzaan Vissershop-Lindenlaan 2",
+    "school": "Voorzaan Vissershop",
+    "board": "Zaanprimair",
+    "street": "Lindenlaan 2",
+    "city": "Zaandam",
+    "outgoingRaw": "6,00",
+    "incomingRaw": "7,00",
+    "equipment": "Knijper",
+    "location": {
+      "lat": 52.43094431,
+      "lng": 4.83473128,
+      "source": "Lindenlaan, Zaandam"
+    }
+  },
+  {
+    "id": "9-De Kroosduiker Noord-Torenstraat 5",
+    "school": "De Kroosduiker Noord",
+    "board": "Zaanprimair",
+    "street": "Torenstraat 5",
+    "city": "Westzaan",
+    "outgoingRaw": "5,00",
+    "incomingRaw": "6,00",
+    "equipment": "Kraan",
+    "location": {
+      "lat": 52.4633052,
+      "lng": 4.77111233,
+      "source": "Torenstraat 5, 1551BK Westzaan"
+    }
+  },
+  {
+    "id": "10-De Jagersplas-Brasemermeer 23b",
+    "school": "De Jagersplas",
+    "board": "Zaanprimair",
+    "street": "Brasemermeer 23b",
+    "city": "Zaandam",
+    "outgoingRaw": "3,00",
+    "incomingRaw": "3,00",
+    "equipment": "Kraan",
+    "location": {
+      "lat": 52.46938386,
+      "lng": 4.83949933,
+      "source": "Brasemermeer 23B, 1509GE Zaandam"
+    }
+  },
+  {
+    "id": "11-Delta-Kreekrijklaan 2, 1567 LP",
+    "school": "Delta",
+    "board": "Zaanprimair",
+    "street": "Kreekrijklaan 2, 1567 LP",
+    "city": "Assendelft",
+    "outgoingRaw": "5,00",
+    "incomingRaw": "5,00",
+    "equipment": "Knikmops",
+    "location": {
+      "lat": 52.49562147,
+      "lng": 4.75010412,
+      "source": "Kreekrijklaan 2, 1567LP Assendelft"
+    }
+  },
+  {
+    "id": "12-De Meander-Parkrijklaan 121D",
+    "school": "De Meander",
+    "board": "Zaanprimair",
+    "street": "Parkrijklaan 121D",
+    "city": "Assendelft",
+    "outgoingRaw": "5,00",
+    "incomingRaw": "6,00",
+    "equipment": "Knikmops",
+    "location": {
+      "lat": 52.48831646,
+      "lng": 4.75046074,
+      "source": "Parkrijklaan 121D, 1567HD Assendelft"
+    }
+  },
+  {
+    "id": "13-De Dorpsakker Noord-Brandakkerstraat 4",
+    "school": "De Dorpsakker Noord",
+    "board": "Zaanprimair",
+    "street": "Brandakkerstraat 4",
+    "city": "Assendelft",
+    "outgoingRaw": "3,00",
+    "incomingRaw": "2,50",
+    "equipment": "Knikmops",
+    "location": {
+      "lat": 52.46814612,
+      "lng": 4.74742793,
+      "source": "Brandakkerstraat, Assendelft"
+    }
+  },
+  {
+    "id": "14-De Pionier-Kerkstraat 52",
+    "school": "De Pionier",
+    "board": "Zaanprimair",
+    "street": "Kerkstraat 52",
+    "city": "Wormerveer",
+    "outgoingRaw": "6,00",
+    "incomingRaw": "6,00",
+    "equipment": "Knikmops",
+    "location": {
+      "lat": 52.49565398,
+      "lng": 4.78737476,
+      "source": "Kerkstraat 52, 1521JP Wormerveer"
+    }
+  },
+  {
+    "id": "15-Dynamica G&SB-De Zevenster 46, 1521 JS",
+    "school": "Dynamica G&SB",
+    "board": "Zaanprimair",
+    "street": "De Zevenster 46, 1521 JS",
+    "city": "Wormerveer",
+    "outgoingRaw": "?",
+    "incomingRaw": "?",
+    "equipment": "Knijper",
+    "location": {
+      "lat": 52.49782965,
+      "lng": 4.78044972,
+      "source": "De Zevenster 46, 1521JT Wormerveer"
+    }
+  },
+  {
+    "id": "16-Kogerveld-Perzikkruidweg 4",
+    "school": "Kogerveld",
+    "board": "Zaanprimair",
+    "street": "Perzikkruidweg 4",
+    "city": "Zaandam",
+    "outgoingRaw": "3,00",
+    "incomingRaw": "2,50",
+    "equipment": "Knikmops",
+    "location": {
+      "lat": 52.45843448,
+      "lng": 4.83088539,
+      "source": "Perzikkruidweg, Zaandam"
+    }
+  },
+  {
+    "id": "17-Herman Gorter Onderbouw-Burgemeester Smitstraat 2A",
+    "school": "Herman Gorter Onderbouw",
+    "board": "Zaanprimair",
+    "street": "Burgemeester Smitstraat 2A",
+    "city": "Zaandam",
+    "outgoingRaw": "5,00",
+    "incomingRaw": "6,00",
+    "equipment": "Knikmops",
+    "location": {
+      "lat": 52.43821552,
+      "lng": 4.8342483,
+      "source": "Burgemeester Smitstraat 2A, 1501RP Zaandam"
+    }
+  },
+  {
+    "id": "18-Et Buut - Overtuinen-Anna de Waalstraat 17",
+    "school": "Et Buut - Overtuinen",
+    "board": "Zaanprimair",
+    "street": "Anna de Waalstraat 17",
+    "city": "Zaandam",
+    "outgoingRaw": "35,00",
+    "incomingRaw": "40,00",
+    "equipment": "Mobiel",
+    "location": {
+      "lat": 52.44326982,
+      "lng": 4.81417887,
+      "source": "Anna de Waalstraat 17, 1506WW Zaandam"
+    }
+  },
+  {
+    "id": "19-ICBS De Vuurvogel-Eemmeer 15B",
+    "school": "ICBS De Vuurvogel",
+    "board": "Agora",
+    "street": "Eemmeer 15B",
+    "city": "Zaandam",
+    "outgoingRaw": "10,00",
+    "incomingRaw": "10,00",
+    "equipment": "Onbekend",
+    "location": {
+      "lat": 52.46950969,
+      "lng": 4.84011708,
+      "source": "Eemmeer 15B, Zaandam"
+    }
+  },
+  {
+    "id": "20-Wij-land Westzaan-J.J. Allanstraat 149",
+    "school": "Wij-land Westzaan",
+    "board": "Agora",
+    "street": "J.J. Allanstraat 149",
+    "city": "Westzaan",
+    "outgoingRaw": "7,00",
+    "incomingRaw": "7,00",
+    "equipment": "Kraan",
+    "location": {
+      "lat": 52.44938568,
+      "lng": 4.77571136,
+      "source": "J.J. Allanstraat 149, 1551RD Westzaan"
+    }
+  },
+  {
+    "id": "21-De Regenboog Assendelft-Brandakkerstraat 8",
+    "school": "De Regenboog Assendelft",
+    "board": "Agora",
+    "street": "Brandakkerstraat 8",
+    "city": "Assendelft",
+    "outgoingRaw": "5,00",
+    "incomingRaw": "5,00",
+    "equipment": "Kraan",
+    "location": {
+      "lat": 52.46896248,
+      "lng": 4.74644216,
+      "source": "Brandakkerstraat 8, 1566XD Assendelft"
+    }
+  },
+  {
+    "id": "22-Hoeksteen-Rosariumpark 182",
+    "school": "Hoeksteen",
+    "board": "Agora",
+    "street": "Rosariumpark 182",
+    "city": "Krommenie",
+    "outgoingRaw": "-",
+    "incomingRaw": "5,00",
+    "equipment": "?",
+    "location": {
+      "lat": 52.50500279,
+      "lng": 4.76365284,
+      "source": "Rosariumpark 182, 1561TZ Krommenie"
+    }
+  },
+  {
+    "id": "23-Kleurenpracht-Klipperstraat 2-4",
+    "school": "Kleurenpracht",
+    "board": "Agora",
+    "street": "Klipperstraat 2-4",
+    "city": "Zaandam",
+    "outgoingRaw": "6,00",
+    "incomingRaw": "6,00",
+    "equipment": "Kraan",
+    "location": {
+      "lat": 52.44270562,
+      "lng": 4.85061509,
+      "source": "Klipperstraat 4, 1503AM Zaandam"
+    }
+  },
+  {
+    "id": "24-Tamarinde-Schaarsven 2a",
+    "school": "Tamarinde",
+    "board": "Agora",
+    "street": "Schaarsven 2a",
+    "city": "Zaandam",
+    "outgoingRaw": "?",
+    "incomingRaw": "?",
+    "equipment": "Onbekend",
+    "location": {
+      "lat": 52.43417,
+      "lng": 4.84526303,
+      "source": "Schaarsven 2a, Zaandam"
+    }
+  },
+  {
+    "id": "25-Wormerwieken-De Balk 2a",
+    "school": "Wormerwieken",
+    "board": "Agora",
+    "street": "De Balk 2a",
+    "city": "Wormer",
+    "outgoingRaw": "10,00",
+    "incomingRaw": "10,00",
+    "equipment": "Kraan",
+    "location": {
+      "lat": 52.49126024,
+      "lng": 4.80788249,
+      "source": "De Balk 2a, 1531PS Wormer"
+    }
+  },
+  {
+    "id": "26-de Piramide-Boschjesstraat 60",
+    "school": "de Piramide",
+    "board": "Agora",
+    "street": "Boschjesstraat 60",
+    "city": "Koog aan de Zaan",
+    "outgoingRaw": "3,00",
+    "incomingRaw": "8,00",
+    "equipment": "Kraan",
+    "location": {
+      "lat": 52.46673148,
+      "lng": 4.80714769,
+      "source": "Boschjesstraat 60, 1541KL Koog aan de Zaan"
+    }
+  },
+  {
+    "id": "27-CBS de Evenaar-Jupiterstraat 139",
+    "school": "CBS de Evenaar",
+    "board": "Agora",
+    "street": "Jupiterstraat 139",
+    "city": "Krommenie",
+    "outgoingRaw": "4,00",
+    "incomingRaw": "4,00",
+    "equipment": "?",
+    "location": {
+      "lat": 52.50130608,
+      "lng": 4.75087539,
+      "source": "Jupiterstraat 139, 1562WP Krommenie"
+    }
+  },
+  {
+    "id": "28-De Golfbreker-Papiermolen 18",
+    "school": "De Golfbreker",
+    "board": "Agora",
+    "street": "Papiermolen 18",
+    "city": "Koog aan de Zaan",
+    "outgoingRaw": "2,00",
+    "incomingRaw": "5,00",
+    "equipment": "Kraan",
+    "location": {
+      "lat": 52.45937858,
+      "lng": 4.79999662,
+      "source": "Papiermolen 18A, Koog aan de Zaan"
+    }
+  },
+  {
+    "id": "29-De Korenaar-Dokter de Boerstraat 42",
+    "school": "De Korenaar",
+    "board": "Agora",
+    "street": "Dokter de Boerstraat 42",
+    "city": "Oostzaan",
+    "outgoingRaw": "-",
+    "incomingRaw": "10,00",
+    "equipment": "Mobiel",
+    "location": {
+      "lat": 52.44126094,
+      "lng": 4.87832763,
+      "source": "Dokter de Boerstraat 42, 1511VH Oostzaan"
+    }
+  },
+  {
+    "id": "30-Het Baken-P.A van Meverstraat 9",
+    "school": "Het Baken",
+    "board": "Agora",
+    "street": "P.A van Meverstraat 9",
+    "city": "Zaandam",
+    "outgoingRaw": "10,00",
+    "incomingRaw": "10,00",
+    "equipment": "Kraan",
+    "location": {
+      "lat": 52.44813395,
+      "lng": 4.79978963,
+      "source": "P.A. van Meverstraat, Zaandam"
+    }
+  },
+  {
+    "id": "31-Het SchatRijk-Rooswijkplein 10",
+    "school": "Het SchatRijk",
+    "board": "Agora",
+    "street": "Rooswijkplein 10",
+    "city": "Zaandijk",
+    "outgoingRaw": "20,00",
+    "incomingRaw": "40,00",
+    "equipment": "Kraan",
+    "location": {
+      "lat": 52.47484427,
+      "lng": 4.79743012,
+      "source": "Rooswijkplein 10, 1544VZ Zaandijk"
+    }
+  },
+  {
+    "id": "32-De Bijenkorf-Saenredamstraat 36",
+    "school": "De Bijenkorf",
+    "board": "Agora",
+    "street": "Saenredamstraat 36",
+    "city": "Assendelft",
+    "outgoingRaw": "9,00",
+    "incomingRaw": "9,00",
+    "equipment": "Mobiel",
+    "location": {
+      "lat": 52.49351571,
+      "lng": 4.75802797,
+      "source": "Saenredamstraat 36, 1566KM Assendelft"
+    }
+  },
+  {
+    "id": "33-het koraal-Beemdgras 5",
+    "school": "het koraal",
+    "board": "Agora",
+    "street": "Beemdgras 5",
+    "city": "Assendelft",
+    "outgoingRaw": "6,00",
+    "incomingRaw": "6,00",
+    "equipment": "?",
+    "location": {
+      "lat": 52.49439316,
+      "lng": 4.74487104,
+      "source": "Beemdgras 5, 1567MM Assendelft"
+    }
+  },
+  {
+    "id": "34-het koraal-Kreekrijklaan 2, 1567 LP",
+    "school": "het koraal",
+    "board": "Agora",
+    "street": "Kreekrijklaan 2, 1567 LP",
+    "city": "Assendelft",
+    "outgoingRaw": "6,00",
+    "incomingRaw": "6,00",
+    "equipment": "Kraan",
+    "location": {
+      "lat": 52.49562147,
+      "lng": 4.75010412,
+      "source": "Kreekrijklaan 2, 1567LP Assendelft"
+    }
+  },
+  {
+    "id": "35-Windroos-Galeistraat  2",
+    "school": "Windroos",
+    "board": "Agora",
+    "street": "Galeistraat  2",
+    "city": "Zaandam",
+    "outgoingRaw": "-",
+    "incomingRaw": "3,00",
+    "equipment": "?",
+    "location": {
+      "lat": 52.44897132,
+      "lng": 4.84337151,
+      "source": "Galeistraat, Zaandam"
+    }
+  },
+  {
+    "id": "36-Zaanplein-L.T. Roggeplein 1",
+    "school": "Zaanplein",
+    "board": "Agora",
+    "street": "L.T. Roggeplein 1",
+    "city": "Zaandam",
+    "outgoingRaw": "-",
+    "incomingRaw": "20,00",
+    "equipment": "Kraan",
+    "location": {
+      "lat": 52.44400672,
+      "lng": 4.82666727,
+      "source": "Lijns Tewisz Roggeplein, Zaandam"
+    }
+  },
+  {
+    "id": "37-Rietvink-P.A. van Meverstraat 3",
+    "school": "Rietvink",
+    "board": "Agora",
+    "street": "P.A. van Meverstraat 3",
+    "city": "Zaandam",
+    "outgoingRaw": "-",
+    "incomingRaw": "12,00",
+    "equipment": "Kraan",
+    "location": {
+      "lat": 52.44813395,
+      "lng": 4.79978963,
+      "source": "P.A. van Meverstraat, Zaandam"
+    }
+  },
+  {
+    "id": "38-Tijstroom-Rode Zee 69",
+    "school": "Tijstroom",
+    "board": "Agora",
+    "street": "Rode Zee 69",
+    "city": "Zaandam",
+    "outgoingRaw": "40,00",
+    "incomingRaw": "40,00",
+    "equipment": "Kraan",
+    "location": {
+      "lat": 52.45211246,
+      "lng": 4.84116785,
+      "source": "Rode Zee 69, 1503TS Zaandam"
+    }
+  },
+  {
+    "id": "39-Paus Joannes-De Weer 25",
+    "school": "Paus Joannes",
+    "board": "Agora",
+    "street": "De Weer 25",
+    "city": "Zaandam",
+    "outgoingRaw": "25,00",
+    "incomingRaw": "25,00",
+    "equipment": "Mobiel",
+    "location": {
+      "lat": 52.43642402,
+      "lng": 4.84485309,
+      "source": "De Weer 25, 1504AH Zaandam"
+    }
+  }
+]
