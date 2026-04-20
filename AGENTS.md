@@ -36,6 +36,13 @@
 - `?`, `-`, and empty values are shown as `Onbekend` and are not parsed as numbers.
 - Location keys must match exactly: `${School}|${Straatnaam}|${Plaats}`.
 - If a CSV address changes, also update `src/data/locations.js` or the map marker will be missing.
+- Each row can include an optional `revision` object for completed work:
+  - `completed` (boolean)
+  - `outgoingRaw` (string)
+  - `incomingRaw` (string)
+  - `equipment` (string)
+  - `notes` (string)
+  - `completedAt` (ISO timestamp or `null`)
 
 ## Current UX
 - Desktop is used above `760px`; mobile is used at `760px` and below via `matchMedia('(max-width: 760px)')`.
@@ -58,16 +65,23 @@
   - `Knijper`: purple
   - `Knikmops`: teal
   - `Onbekend`: gray
+- Completed revisions show a green check badge on the map marker.
 - There is no map legend by user request.
 - Every popup and table row has a Google Maps route link.
 - Route link text must stay white in normal, visited, hover, and active states.
 - Map includes a `Mijn locatie` control that uses browser geolocation, centers the map on the user, and displays a blue user-location marker with accuracy in meters.
+- Popup and mobile cards include revision actions:
+  - `Zandbak afronden` to save completed work
+  - `Revisie aanpassen` after completion
+  - `Opnieuw openzetten` to remove completed state
 
 ## Editing Behavior
 - Desktop: right-click a map marker to open the edit card.
 - Mobile: tap a marker and use `Bewerken` in the popup, or use `Bewerken` on a location card, only when admin mode is active.
 - Admin mode is opened by clicking the top-right `Bron` pill and entering the password `Sturm1505!`.
 - Clicking the `Bron` pill again logs out admin and immediately disables all edit entry points.
+- Revision flow is available to all users (not admin-only) and opens via popup/location-card actions.
+- Revision saves are sent directly to `/api/rows` and use localStorage fallback when server persistence fails.
 - Editable fields:
   - School
   - Bestuur
@@ -121,6 +135,7 @@
 - Keep commits focused and update this changelog before pushing project changes.
 
 ## Changelog
+- 2026-04-20: Added revision workflow for completed sandpit work in `src/App.jsx` and `src/App.css`. Users can now save `Zandbak afronden` details (`m3 uit`, `m3 in`, uitgevoerd materieel, optional opmerkingen), view these values in the marker popup, reopen completed items, and see a check badge on completed map markers. Revision data is stored per row in a `revision` object and persisted via existing `/api/rows` storage flow with local fallback. Verified with `npm run lint` and `npm run build`.
 - 2026-04-20: Added password-gated admin edit mode via the top-right `Bron` pill in `src/App.jsx`. Editing is now hidden/blocked for regular users (popup button, mobile card button, and marker right-click), and only becomes available after entering admin password `Sturm1505!`; clicking the pill again logs out admin and closes active edit state. Added auth modal and source-pill/admin visual styles in `src/App.css`. Verified with `npm run lint` and `npm run build`.
 - 2026-04-18: Added `AGENTS.md` as project handoff documentation. Documented project structure, CSV/data rules, UX behavior, right-click edit flow, localStorage behavior, corrected addresses, dependencies, run commands, and future-agent cautions. Verified app was running at `http://127.0.0.1:5173` with HTTP `200 OK`.
 - 2026-04-18: Added this changelog and the rule that every future project change must be recorded in `AGENTS.md`. No app code changed.

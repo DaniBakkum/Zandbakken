@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { CircleMarker, MapContainer, Popup, TileLayer, useMap } from 'react-leaflet'
+import { divIcon } from 'leaflet'
+import { CircleMarker, MapContainer, Marker, Popup, TileLayer, useMap } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
 import './App.css'
 import { locationsByKey } from './data/locations'
@@ -70,6 +71,25 @@ function formatVolume(value) {
   })
 }
 
+function formatTimestamp(value) {
+  if (!value) {
+    return 'Onbekend'
+  }
+
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) {
+    return 'Onbekend'
+  }
+
+  return parsed.toLocaleString('nl-NL', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
 function equipmentLabel(equipment) {
   return UNKNOWN_VALUES.has(equipment) ? 'Onbekend' : equipment
 }
@@ -88,6 +108,17 @@ function makeLocationKey(row) {
   return `${cleanValue(row.school)}|${cleanValue(row.street)}|${cleanValue(row.city)}`
 }
 
+function normalizeRevision(revision) {
+  return {
+    completed: Boolean(revision?.completed),
+    outgoingRaw: cleanValue(revision?.outgoingRaw),
+    incomingRaw: cleanValue(revision?.incomingRaw),
+    equipment: cleanValue(revision?.equipment),
+    notes: cleanValue(revision?.notes),
+    completedAt: revision?.completedAt ? String(revision.completedAt) : null,
+  }
+}
+
 function normalizeRow(row, index) {
   const normalized = {
     id: `${index}-${cleanValue(row.School)}-${cleanValue(row.Straatnaam)}`,
@@ -100,11 +131,13 @@ function normalizeRow(row, index) {
     equipment: cleanValue(row.Materieel),
   }
   const location = locationsByKey[makeLocationKey(normalized)]
+  const revision = normalizeRevision(row.revision)
 
   normalized.outgoing = parseDutchNumber(normalized.outgoingRaw)
   normalized.incoming = parseDutchNumber(normalized.incomingRaw)
   normalized.location = location ?? null
   normalized.needsCheck = !location
+  normalized.revision = revision
 
   return normalized
 }
@@ -120,6 +153,7 @@ function serializeRows(rows) {
     incomingRaw: row.incomingRaw,
     equipment: row.equipment,
     location: row.location,
+    revision: row.revision ?? normalizeRevision(null),
   }))
 }
 
@@ -134,11 +168,13 @@ function reviveStoredRow(row) {
     incomingRaw: cleanValue(row.incomingRaw),
     equipment: cleanValue(row.equipment),
     location: row.location ?? null,
+    revision: normalizeRevision(row.revision),
   }
 
   revived.outgoing = parseDutchNumber(revived.outgoingRaw)
   revived.incoming = parseDutchNumber(revived.incomingRaw)
   revived.needsCheck = !revived.location
+  revived.revision = normalizeRevision(revived.revision)
 
   return revived
 }
@@ -186,6 +222,46 @@ function draftToRow(currentRow, draft) {
   row.needsCheck = !row.location
 
   return row
+}
+
+function rowToRevisionDraft(row) {
+  return {
+    id: row.id,
+    school: row.school,
+    outgoingRaw: row.revision.outgoingRaw || row.outgoingRaw,
+    incomingRaw: row.revision.incomingRaw || row.incomingRaw,
+    equipment: row.revision.equipment || equipmentLabel(row.equipment),
+    notes: row.revision.notes,
+  }
+}
+
+function revisionDraftToRow(currentRow, draft) {
+  return {
+    ...currentRow,
+    revision: {
+      completed: true,
+      outgoingRaw: cleanValue(draft.outgoingRaw),
+      incomingRaw: cleanValue(draft.incomingRaw),
+      equipment: cleanValue(draft.equipment),
+      notes: cleanValue(draft.notes),
+      completedAt: new Date().toISOString(),
+    },
+  }
+}
+
+function rowMarkerIcon(row, isSelected) {
+  const color = equipmentColor(row.equipment)
+  const selectedClass = isSelected ? 'selected' : ''
+  const completeClass = row.revision.completed ? 'completed' : ''
+  const html = `<span class="school-marker-core ${selectedClass} ${completeClass}" style="--marker-fill:${color.fill};--marker-stroke:${color.stroke};"></span>`
+
+  return divIcon({
+    className: 'school-marker-icon',
+    html,
+    iconSize: [30, 30],
+    iconAnchor: [15, 15],
+    popupAnchor: [0, -14],
+  })
 }
 
 function loadStoredRows() {
@@ -310,9 +386,12 @@ function App() {
   const [selectedId, setSelectedId] = useState(null)
   const [isPanelOpen, setIsPanelOpen] = useState(false)
   const [editDraft, setEditDraft] = useState(null)
+  const [revisionDraft, setRevisionDraft] = useState(null)
   const [isEquipmentMenuOpen, setIsEquipmentMenuOpen] = useState(false)
   const [saveError, setSaveError] = useState('')
   const [isSaving, setIsSaving] = useState(false)
+  const [revisionSaveError, setRevisionSaveError] = useState('')
+  const [isRevisionSaving, setIsRevisionSaving] = useState(false)
   const [mobileView, setMobileView] = useState('map')
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false)
   const [userLocation, setUserLocation] = useState(null)
@@ -353,13 +432,15 @@ function App() {
   }, [])
 
   useEffect(() => {
-    if (!editDraft && !isAuthModalOpen) {
+    if (!editDraft && !revisionDraft && !isAuthModalOpen) {
       return undefined
     }
 
     function handleKeyDown(event) {
       if (event.key === 'Escape') {
         setEditDraft(null)
+        setRevisionDraft(null)
+        setRevisionSaveError('')
         setIsAuthModalOpen(false)
         setAdminPasswordInput('')
         setAdminAuthError('')
@@ -368,7 +449,7 @@ function App() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [editDraft, isAuthModalOpen])
+  }, [editDraft, revisionDraft, isAuthModalOpen])
 
   const boardOptions = useMemo(() => getOptionValues(rows, 'board'), [rows])
   const cityOptions = useMemo(() => getOptionValues(rows, 'city'), [rows])
@@ -442,7 +523,16 @@ function App() {
     }
 
     setSelectedId(row.id)
+    setRevisionDraft(null)
     setEditDraft(rowToDraft(row))
+  }
+
+  function openRevision(row) {
+    setSelectedId(row.id)
+    setSaveError('')
+    setEditDraft(null)
+    setRevisionSaveError('')
+    setRevisionDraft(rowToRevisionDraft(row))
   }
 
   function openAdminAuthModal() {
@@ -520,6 +610,26 @@ function App() {
     setEditDraft((current) => ({ ...current, [name]: value }))
   }
 
+  function updateRevisionDraft(name, value) {
+    setRevisionDraft((current) => ({ ...current, [name]: value }))
+  }
+
+  async function persistRows(nextRows, onServerSaveFailed) {
+    let serverSaveFailed = false
+
+    try {
+      await saveRowsToServer(nextRows)
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(serializeRows(nextRows)))
+    } catch {
+      serverSaveFailed = true
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(serializeRows(nextRows)))
+      onServerSaveFailed?.()
+    }
+
+    setRows(nextRows)
+    return serverSaveFailed
+  }
+
   async function saveDraft(event) {
     event.preventDefault()
     const currentRow = rows.find((row) => row.id === editDraft.id)
@@ -533,24 +643,57 @@ function App() {
 
     setIsSaving(true)
     setSaveError('')
-    let serverSaveFailed = false
-
-    try {
-      await saveRowsToServer(nextRows)
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(serializeRows(nextRows)))
-    } catch {
-      serverSaveFailed = true
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(serializeRows(nextRows)))
+    const serverSaveFailed = await persistRows(nextRows, () => {
       setSaveError('Serveropslag is niet gelukt; deze wijziging is alleen in deze browser bewaard.')
-    }
+    })
 
-    setRows(nextRows)
     setSelectedId(nextRow.id)
     setIsSaving(false)
 
     if (!serverSaveFailed) {
       setEditDraft(null)
     }
+  }
+
+  async function saveRevisionDraft(event) {
+    event.preventDefault()
+    const currentRow = rows.find((row) => row.id === revisionDraft.id)
+
+    if (!currentRow) {
+      return
+    }
+
+    const nextRow = revisionDraftToRow(currentRow, revisionDraft)
+    const nextRows = rows.map((row) => (row.id === nextRow.id ? nextRow : row))
+
+    setIsRevisionSaving(true)
+    setRevisionSaveError('')
+    const serverSaveFailed = await persistRows(nextRows, () => {
+      setRevisionSaveError('Serveropslag is niet gelukt; deze revisie is alleen in deze browser bewaard.')
+    })
+
+    setSelectedId(nextRow.id)
+    setIsRevisionSaving(false)
+
+    if (!serverSaveFailed) {
+      setRevisionDraft(null)
+    }
+  }
+
+  async function reopenRevision(row) {
+    const nextRow = {
+      ...row,
+      revision: {
+        ...normalizeRevision(row.revision),
+        completed: false,
+        completedAt: null,
+      },
+    }
+    const nextRows = rows.map((item) => (item.id === row.id ? nextRow : item))
+
+    setRevisionSaveError('')
+    await persistRows(nextRows)
+    setSelectedId(row.id)
   }
 
   function sortLabel(key) {
@@ -767,16 +910,10 @@ function App() {
                   {sortedRows
                     .filter((row) => row.location)
                     .map((row) => (
-                      <CircleMarker
+                      <Marker
                         key={row.id}
                         center={[row.location.lat, row.location.lng]}
-                        pathOptions={{
-                          color: row.id === selectedRow?.id ? '#172554' : equipmentColor(row.equipment).stroke,
-                          fillColor: equipmentColor(row.equipment).fill,
-                          fillOpacity: row.id === selectedRow?.id ? 0.95 : 0.72,
-                          weight: row.id === selectedRow?.id ? 4 : 2,
-                        }}
-                        radius={row.id === selectedRow?.id ? 11 : 8}
+                        icon={rowMarkerIcon(row, row.id === selectedRow?.id)}
                         eventHandlers={{
                           click: () => setSelectedId(row.id),
                           contextmenu: (event) => {
@@ -797,6 +934,16 @@ function App() {
                           <span>m3 uit: {formatVolume(row.outgoing)}</span>
                           <span>m3 in: {formatVolume(row.incoming)}</span>
                           <span>Materieel: {equipmentLabel(row.equipment)}</span>
+                          {row.revision.completed && (
+                            <div className="revision-summary">
+                              <strong>Revisie afgerond</strong>
+                              <span>m3 uit uitgevoerd: {formatVolume(parseDutchNumber(row.revision.outgoingRaw))}</span>
+                              <span>m3 in uitgevoerd: {formatVolume(parseDutchNumber(row.revision.incomingRaw))}</span>
+                              <span>Materieel uitgevoerd: {equipmentLabel(row.revision.equipment)}</span>
+                              {row.revision.notes && <span>Opmerkingen: {row.revision.notes}</span>}
+                              <span>Afgerond op: {formatTimestamp(row.revision.completedAt)}</span>
+                            </div>
+                          )}
                           <div className="popup-actions">
                             <a
                               className="route-link"
@@ -806,6 +953,22 @@ function App() {
                             >
                               Routebeschrijving
                             </a>
+                            <button
+                              type="button"
+                              className="popup-complete-button"
+                              onClick={() => openRevision(row)}
+                            >
+                              {row.revision.completed ? 'Revisie aanpassen' : 'Zandbak afronden'}
+                            </button>
+                            {row.revision.completed && (
+                              <button
+                                type="button"
+                                className="popup-reopen-button"
+                                onClick={() => reopenRevision(row)}
+                              >
+                                Opnieuw openzetten
+                              </button>
+                            )}
                             {isAdmin && (
                               <button type="button" className="popup-edit-button" onClick={() => openEditor(row)}>
                                 Bewerken
@@ -814,7 +977,7 @@ function App() {
                           </div>
                           {row.needsCheck && <em>Gegevens controleren</em>}
                         </Popup>
-                      </CircleMarker>
+                      </Marker>
                     ))}
                 </MapContainer>
               )}
@@ -962,6 +1125,14 @@ function App() {
                       >
                         Route
                       </a>
+                      <button type="button" className="popup-complete-button" onClick={() => openRevision(row)}>
+                        {row.revision.completed ? 'Revisie aanpassen' : 'Zandbak afronden'}
+                      </button>
+                      {row.revision.completed && (
+                        <button type="button" className="popup-reopen-button" onClick={() => reopenRevision(row)}>
+                          Opnieuw openzetten
+                        </button>
+                      )}
                       {isAdmin && (
                         <button type="button" className="secondary-button compact" onClick={() => openEditor(row)}>
                           Bewerken
@@ -1064,6 +1235,97 @@ function App() {
                   </button>
                   <button type="submit" className="primary-button" disabled={isSaving}>
                     {isSaving ? 'Opslaan...' : 'Opslaan'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {revisionDraft && (
+            <div
+              className="edit-overlay"
+              role="presentation"
+              onClick={() => {
+                setRevisionDraft(null)
+                setRevisionSaveError('')
+              }}
+            >
+              <form
+                className="revision-panel"
+                onSubmit={saveRevisionDraft}
+                onClick={(event) => event.stopPropagation()}
+              >
+                <div className="edit-header">
+                  <div>
+                    <p className="eyebrow">Revisie werkzaamheden</p>
+                    <h2>{revisionDraft.school}</h2>
+                  </div>
+                  <button
+                    type="button"
+                    className="icon-button"
+                    onClick={() => {
+                      setRevisionDraft(null)
+                      setRevisionSaveError('')
+                    }}
+                    aria-label="Revisie sluiten"
+                    title="Revisie sluiten"
+                  >
+                    &times;
+                  </button>
+                </div>
+
+                <div className="edit-grid">
+                  <label className="field">
+                    <span>m3 uit uitgevoerd</span>
+                    <input
+                      value={revisionDraft.outgoingRaw}
+                      onChange={(event) => updateRevisionDraft('outgoingRaw', event.target.value)}
+                    />
+                  </label>
+                  <label className="field">
+                    <span>m3 in uitgevoerd</span>
+                    <input
+                      value={revisionDraft.incomingRaw}
+                      onChange={(event) => updateRevisionDraft('incomingRaw', event.target.value)}
+                    />
+                  </label>
+                  <label className="field wide">
+                    <span>Materieel uitgevoerd</span>
+                    <select
+                      value={revisionDraft.equipment}
+                      onChange={(event) => updateRevisionDraft('equipment', event.target.value)}
+                    >
+                      {Object.keys(EQUIPMENT_COLORS).map((equipment) => (
+                        <option key={equipment} value={equipment}>
+                          {equipment}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="field wide">
+                    <span>Opmerkingen (optioneel)</span>
+                    <textarea
+                      rows={4}
+                      value={revisionDraft.notes}
+                      onChange={(event) => updateRevisionDraft('notes', event.target.value)}
+                    />
+                  </label>
+                </div>
+
+                <div className="edit-actions">
+                  {revisionSaveError && <p className="save-error">{revisionSaveError}</p>}
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() => {
+                      setRevisionDraft(null)
+                      setRevisionSaveError('')
+                    }}
+                  >
+                    Annuleren
+                  </button>
+                  <button type="submit" className="primary-button" disabled={isRevisionSaving}>
+                    {isRevisionSaving ? 'Opslaan...' : 'Afronden opslaan'}
                   </button>
                 </div>
               </form>
