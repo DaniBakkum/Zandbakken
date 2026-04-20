@@ -65,17 +65,15 @@
   - Materieel compact multi-select dropdown
   - Afronding dropdown (`Alle voortgang`, `Afgerond`, `Niet afgerond`)
 - Map marker colors are based on `Materieel`:
-  - `Mobiel`: blue
-  - `Kraan`: orange
-  - `Knijper`: purple
-  - `Knikmops`: teal
+  - `mobiel/knijper`: purple
+  - `kraantje/shovel`: orange
   - `Onbekend`: gray
 - Completed revisions show a green check badge on the map marker.
 - There is no map legend by user request.
 - Every popup and table row has a Google Maps route link.
 - Route links use marker coordinates (`lat,lng`) when available so navigation matches the map marker position; address is only a fallback.
 - Route link text must stay white in normal, visited, hover, and active states.
-- Map includes a `Mijn locatie` control that uses browser geolocation, centers the map on the user, and displays a blue user-location marker with accuracy in meters.
+- Map includes a `Mijn locatie` control that uses browser geolocation, centers the map on the user, and displays a blue crosshair-style user-location marker with accuracy in meters.
 - Popup and mobile cards include revision actions:
   - `Zandbak afronden` to save completed work
   - `Revisie aanpassen` after completion
@@ -150,6 +148,8 @@
 - Keep commits focused and update this changelog before pushing project changes.
 
 ## Changelog
+- 2026-04-20: Updated map marker visual distinction between schools and user location. Replaced the `Mijn locatie` marker with a custom blue crosshair icon and changed `mobiel/knijper` school marker color from blue to purple so school bolletjes are no longer blue. Verified with `npm run lint` and `npm run build`.
+- 2026-04-20: Merged materieel categories and added canonical server migration. Frontend now normalizes to `mobiel/knijper`, `kraantje/shovel`, or `Onbekend` (including revision equipment), filters/dropdowns/markers only use these values, and both dev (`vite.config.js`) and production (`api/rows.js`) `/api/rows` paths now normalize on `GET`/`PUT` and auto-migrate legacy values on read (best effort). Verified with `npm run lint` and `npm run build`.
 - 2026-04-20: Fixed materieel multi-select behavior after `Alles verbergen`. Selecting one materieel from an empty selection now correctly shows only that selected option instead of all others. Verified with `npm run lint` and `npm run build`.
 - 2026-04-20: Relaxed revision photo compression fallback to prevent over-rejection. Compression now tries multiple resize rounds plus quality reduction and accepts a practical hard-limit fallback (while still preferring ~250 KB target), reducing cases where normal phone photos were always rejected as too large. Verified with `npm run lint` and `npm run build`.
 - 2026-04-20: Added revision photo support with client-side compression and server persistence. Users can add up to 3 photos in the revision modal, images are resized/compressed to WebP before save (target ~250 KB per photo), and photos can be replaced or removed. Stored photos now persist inside `revision.photos` and appear as thumbnails in completed popup summaries with a click-to-enlarge preview. Verified with `npm run lint` and `npm run build`.

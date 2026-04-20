@@ -266,8 +266,55 @@ button:focus-visible {
   padding: 9px 12px;
 }
 
-.user-location-marker {
-  filter: drop-shadow(0 0 10px rgba(37, 99, 235, 0.6));
+.user-location-icon {
+  background: transparent;
+  border: 0;
+}
+
+.user-location-crosshair {
+  align-items: center;
+  border: 3px solid #1d4ed8;
+  border-radius: 999px;
+  box-shadow: 0 0 0 2px rgba(147, 197, 253, 0.35);
+  box-sizing: border-box;
+  display: inline-flex;
+  height: 30px;
+  justify-content: center;
+  position: relative;
+  width: 30px;
+}
+
+.user-location-crosshair::before,
+.user-location-crosshair::after {
+  background: #1d4ed8;
+  content: '';
+  position: absolute;
+}
+
+.user-location-crosshair::before {
+  height: 2px;
+  left: -8px;
+  right: -8px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.user-location-crosshair::after {
+  bottom: -8px;
+  left: 50%;
+  top: -8px;
+  transform: translateX(-50%);
+  width: 2px;
+}
+
+.user-location-core {
+  background: #60a5fa;
+  border: 2px solid #1e3a8a;
+  border-radius: 999px;
+  box-sizing: border-box;
+  display: block;
+  height: 10px;
+  width: 10px;
 }
 
 .school-marker-icon {

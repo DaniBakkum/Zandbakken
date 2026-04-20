@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { divIcon } from 'leaflet'
-import { CircleMarker, MapContainer, Marker, Popup, TileLayer, useMap } from 'react-leaflet'
+import { MapContainer, Marker, Popup, TileLayer, useMap } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
 import './App.css'
 import { locationsByKey } from './data/locations'
@@ -12,12 +12,15 @@ const MAP_CENTER = [52.466, 4.81]
 const MOBILE_QUERY = '(max-width: 760px)'
 const ADMIN_PASSWORD = 'Sturm1505!'
 const UNKNOWN_VALUES = new Set(['', '?', '-'])
+const EQUIPMENT_CANONICAL = {
+  UNKNOWN: 'Onbekend',
+  MOBILE_GRAB: 'mobiel/knijper',
+  CRANE_SHOVEL: 'kraantje/shovel',
+}
 const EQUIPMENT_COLORS = {
-  Mobiel: { fill: '#2563eb', stroke: '#1e3a8a' },
-  Kraan: { fill: '#f97316', stroke: '#9a3412' },
-  Knijper: { fill: '#9333ea', stroke: '#581c87' },
-  Knikmops: { fill: '#0d9488', stroke: '#115e59' },
-  Onbekend: { fill: '#64748b', stroke: '#334155' },
+  [EQUIPMENT_CANONICAL.MOBILE_GRAB]: { fill: '#9333ea', stroke: '#581c87' },
+  [EQUIPMENT_CANONICAL.CRANE_SHOVEL]: { fill: '#f97316', stroke: '#9a3412' },
+  [EQUIPMENT_CANONICAL.UNKNOWN]: { fill: '#64748b', stroke: '#334155' },
 }
 const STATUS_OPTIONS = [
   { label: 'Alle voortgang', value: 'all' },
@@ -106,8 +109,44 @@ function formatBytes(value) {
   return `${Math.round(value / 1024)} KB`
 }
 
+function normalizeEquipmentValue(equipment) {
+  const cleaned = cleanValue(equipment)
+
+  if (UNKNOWN_VALUES.has(cleaned)) {
+    return EQUIPMENT_CANONICAL.UNKNOWN
+  }
+
+  if (cleaned === EQUIPMENT_CANONICAL.MOBILE_GRAB || cleaned === 'Mobiel' || cleaned === 'Knijper') {
+    return EQUIPMENT_CANONICAL.MOBILE_GRAB
+  }
+
+  if (cleaned === EQUIPMENT_CANONICAL.CRANE_SHOVEL || cleaned === 'Kraan' || cleaned === 'Knikmops') {
+    return EQUIPMENT_CANONICAL.CRANE_SHOVEL
+  }
+
+  if (cleaned === EQUIPMENT_CANONICAL.UNKNOWN || cleaned === 'Onbekend') {
+    return EQUIPMENT_CANONICAL.UNKNOWN
+  }
+
+  return EQUIPMENT_CANONICAL.UNKNOWN
+}
+
+function hasLegacyEquipmentValue(equipment) {
+  return cleanValue(equipment) !== normalizeEquipmentValue(equipment)
+}
+
+function hasLegacyEquipmentRows(rows) {
+  if (!Array.isArray(rows)) {
+    return false
+  }
+
+  return rows.some(
+    (row) => hasLegacyEquipmentValue(row?.equipment) || hasLegacyEquipmentValue(row?.revision?.equipment),
+  )
+}
+
 function equipmentLabel(equipment) {
-  return UNKNOWN_VALUES.has(equipment) ? 'Onbekend' : equipment
+  return normalizeEquipmentValue(equipment)
 }
 
 function equipmentColor(equipment) {
@@ -294,7 +333,7 @@ function normalizeRevision(revision) {
     completed: Boolean(revision?.completed),
     outgoingRaw: cleanValue(revision?.outgoingRaw),
     incomingRaw: cleanValue(revision?.incomingRaw),
-    equipment: cleanValue(revision?.equipment),
+    equipment: normalizeEquipmentValue(revision?.equipment),
     notes: cleanValue(revision?.notes),
     completedAt: revision?.completedAt ? String(revision.completedAt) : null,
     photos: normalizeRevisionPhotos(revision?.photos),
@@ -310,7 +349,7 @@ function normalizeRow(row, index) {
     city: cleanValue(row.Plaats),
     outgoingRaw: cleanValue(row['m3 uit']),
     incomingRaw: cleanValue(row['m3 in']),
-    equipment: cleanValue(row.Materieel),
+    equipment: normalizeEquipmentValue(row.Materieel),
   }
   const location = locationsByKey[makeLocationKey(normalized)]
   const revision = normalizeRevision(row.revision)
@@ -348,7 +387,7 @@ function reviveStoredRow(row) {
     city: cleanValue(row.city),
     outgoingRaw: cleanValue(row.outgoingRaw),
     incomingRaw: cleanValue(row.incomingRaw),
-    equipment: cleanValue(row.equipment),
+    equipment: normalizeEquipmentValue(row.equipment),
     location: row.location ?? null,
     revision: normalizeRevision(row.revision),
   }
@@ -409,7 +448,7 @@ function draftToRow(currentRow, draft) {
     city: cleanValue(draft.city),
     outgoingRaw: cleanValue(draft.outgoingRaw),
     incomingRaw: cleanValue(draft.incomingRaw),
-    equipment: cleanValue(draft.equipment) || '?',
+    equipment: normalizeEquipmentValue(draft.equipment),
     location,
   }
 
@@ -431,7 +470,7 @@ function createRowFromDraft(draft) {
     city: cleanValue(draft.city),
     outgoingRaw: cleanValue(draft.outgoingRaw),
     incomingRaw: cleanValue(draft.incomingRaw),
-    equipment: cleanValue(draft.equipment) || '?',
+    equipment: normalizeEquipmentValue(draft.equipment),
     location:
       lat === null || lng === null
         ? null
@@ -456,7 +495,7 @@ function rowToRevisionDraft(row) {
     school: row.school,
     outgoingRaw: row.revision.outgoingRaw || row.outgoingRaw,
     incomingRaw: row.revision.incomingRaw || row.incomingRaw,
-    equipment: row.revision.equipment || equipmentLabel(row.equipment),
+    equipment: normalizeEquipmentValue(row.revision.equipment || equipmentLabel(row.equipment)),
     notes: row.revision.notes,
     photos: normalizeRevisionPhotos(row.revision.photos),
   }
@@ -469,7 +508,7 @@ function revisionDraftToRow(currentRow, draft) {
       completed: true,
       outgoingRaw: cleanValue(draft.outgoingRaw),
       incomingRaw: cleanValue(draft.incomingRaw),
-      equipment: cleanValue(draft.equipment),
+      equipment: normalizeEquipmentValue(draft.equipment),
       notes: cleanValue(draft.notes),
       completedAt: new Date().toISOString(),
       photos: normalizeRevisionPhotos(draft.photos),
@@ -492,6 +531,14 @@ function rowMarkerIcon(row, isSelected) {
   })
 }
 
+const USER_LOCATION_ICON = divIcon({
+  className: 'user-location-icon',
+  html: '<span class="user-location-crosshair"><span class="user-location-core"></span></span>',
+  iconSize: [34, 34],
+  iconAnchor: [17, 17],
+  popupAnchor: [0, -12],
+})
+
 function loadStoredRows() {
   try {
     const storedRows = window.localStorage.getItem(STORAGE_KEY)
@@ -511,7 +558,14 @@ async function loadServerRows() {
     }
 
     const payload = await response.json()
-    return Array.isArray(payload.rows) ? payload.rows.map(reviveStoredRow) : null
+    if (!Array.isArray(payload.rows)) {
+      return null
+    }
+
+    return {
+      rows: payload.rows.map(reviveStoredRow),
+      hadLegacyEquipment: hasLegacyEquipmentRows(payload.rows),
+    }
   } catch {
     return null
   }
@@ -639,12 +693,17 @@ function App() {
         }
 
         const csvRows = parseCsv(await csvResponse.text())
-        const serverRows = await loadServerRows()
+        const serverResult = await loadServerRows()
+        const serverRows = serverResult?.rows ?? null
         const storedRows = loadStoredRows()
         const parsedRows = serverRows ?? storedRows ?? csvRows
         const parsedEquipmentOptions = [
           ...new Set(parsedRows.map((row) => equipmentLabel(row.equipment)).filter(Boolean)),
         ].sort((a, b) => a.localeCompare(b, 'nl'))
+
+        if (serverRows && serverResult?.hadLegacyEquipment) {
+          saveRowsToServer(serverRows).catch(() => {})
+        }
 
         if (!serverRows && storedRows) {
           saveRowsToServer(storedRows).catch(() => {})
@@ -1303,24 +1362,14 @@ function App() {
                   <MapFocus selectedRow={selectedRow} />
                   <UserLocationFocus userLocation={userLocation} />
                   {userLocation && (
-                    <CircleMarker
-                      center={[userLocation.lat, userLocation.lng]}
-                      className="user-location-marker"
-                      pathOptions={{
-                        color: '#1d4ed8',
-                        fillColor: '#60a5fa',
-                        fillOpacity: 0.9,
-                        weight: 3,
-                      }}
-                      radius={10}
-                    >
+                    <Marker position={[userLocation.lat, userLocation.lng]} icon={USER_LOCATION_ICON}>
                       <Popup>
                         <strong>Jouw locatie</strong>
                         <span>
                           Nauwkeurigheid: circa {Math.round(userLocation.accuracy)} meter
                         </span>
                       </Popup>
-                    </CircleMarker>
+                    </Marker>
                   )}
                   {sortedRows
                     .filter((row) => row.location)
