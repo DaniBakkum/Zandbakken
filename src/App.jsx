@@ -26,10 +26,12 @@ const STATUS_OPTIONS = [
 ]
 const MAX_REVISION_PHOTOS = 3
 const PHOTO_MAX_DIMENSION = 1280
+const PHOTO_MIN_DIMENSION = 560
 const PHOTO_TARGET_BYTES = 250 * 1024
+const PHOTO_HARD_MAX_BYTES = 550 * 1024
 const PHOTO_QUALITY_START = 0.72
-const PHOTO_QUALITY_MIN = 0.42
-const PHOTO_QUALITY_STEP = 0.08
+const PHOTO_QUALITY_MIN = 0.3
+const PHOTO_QUALITY_STEP = 0.07
 
 function cleanValue(value) {
   return String(value ?? '').trim()
@@ -222,41 +224,69 @@ async function compressRevisionPhoto(file) {
     throw new Error('Afbeeldingsafmetingen zijn ongeldig.')
   }
 
-  const scale = Math.min(1, PHOTO_MAX_DIMENSION / Math.max(sourceWidth, sourceHeight))
-  const width = Math.max(1, Math.round(sourceWidth * scale))
-  const height = Math.max(1, Math.round(sourceHeight * scale))
-  const canvas = document.createElement('canvas')
-  canvas.width = width
-  canvas.height = height
+  let dimensionLimit = PHOTO_MAX_DIMENSION
+  let bestBlob = null
+  let bestWidth = 0
+  let bestHeight = 0
 
-  const context = canvas.getContext('2d')
-  if (!context) {
-    throw new Error('Canvas wordt niet ondersteund door deze browser.')
+  while (dimensionLimit >= PHOTO_MIN_DIMENSION) {
+    const scale = Math.min(1, dimensionLimit / Math.max(sourceWidth, sourceHeight))
+    const width = Math.max(1, Math.round(sourceWidth * scale))
+    const height = Math.max(1, Math.round(sourceHeight * scale))
+    const canvas = document.createElement('canvas')
+    canvas.width = width
+    canvas.height = height
+
+    const context = canvas.getContext('2d')
+    if (!context) {
+      throw new Error('Canvas wordt niet ondersteund door deze browser.')
+    }
+
+    context.drawImage(image, 0, 0, width, height)
+
+    let quality = PHOTO_QUALITY_START
+    while (quality >= PHOTO_QUALITY_MIN) {
+      const blob = await canvasToWebpBlob(canvas, quality)
+
+      if (!bestBlob || blob.size < bestBlob.size) {
+        bestBlob = blob
+        bestWidth = width
+        bestHeight = height
+      }
+
+      if (blob.size <= PHOTO_TARGET_BYTES) {
+        const dataUrl = await blobToDataUrl(blob)
+        return {
+          id: `photo-${Date.now()}-${Math.floor(Math.random() * 100000)}`,
+          dataUrl,
+          mimeType: 'image/webp',
+          width,
+          height,
+          sizeBytes: blob.size,
+          createdAt: new Date().toISOString(),
+        }
+      }
+
+      quality -= PHOTO_QUALITY_STEP
+    }
+
+    dimensionLimit = Math.round(dimensionLimit * 0.8)
   }
 
-  context.drawImage(image, 0, 0, width, height)
-
-  let quality = PHOTO_QUALITY_START
-  let blob = await canvasToWebpBlob(canvas, quality)
-
-  while (blob.size > PHOTO_TARGET_BYTES && quality > PHOTO_QUALITY_MIN) {
-    quality = Math.max(PHOTO_QUALITY_MIN, quality - PHOTO_QUALITY_STEP)
-    blob = await canvasToWebpBlob(canvas, quality)
+  if (bestBlob && bestBlob.size <= PHOTO_HARD_MAX_BYTES) {
+    const dataUrl = await blobToDataUrl(bestBlob)
+    return {
+      id: `photo-${Date.now()}-${Math.floor(Math.random() * 100000)}`,
+      dataUrl,
+      mimeType: 'image/webp',
+      width: bestWidth,
+      height: bestHeight,
+      sizeBytes: bestBlob.size,
+      createdAt: new Date().toISOString(),
+    }
   }
 
-  if (blob.size > PHOTO_TARGET_BYTES) {
-    throw new Error('Foto is na compressie nog te groot. Kies een kleinere afbeelding.')
-  }
-
-  return {
-    id: `photo-${Date.now()}-${Math.floor(Math.random() * 100000)}`,
-    dataUrl: await blobToDataUrl(blob),
-    mimeType: 'image/webp',
-    width,
-    height,
-    sizeBytes: blob.size,
-    createdAt: new Date().toISOString(),
-  }
+  throw new Error('Foto is na compressie nog te groot. Kies een kleinere afbeelding.')
 }
 
 function normalizeRevision(revision) {
