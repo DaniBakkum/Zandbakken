@@ -29,12 +29,12 @@ const STATUS_OPTIONS = [
 ]
 const MAX_REVISION_PHOTOS = 3
 const PHOTO_MAX_DIMENSION = 1280
-const PHOTO_MIN_DIMENSION = 560
-const PHOTO_TARGET_BYTES = 250 * 1024
-const PHOTO_HARD_MAX_BYTES = 550 * 1024
+const PHOTO_MIN_DIMENSION = 420
+const PHOTO_TARGET_BYTES = 300 * 1024
+const PHOTO_HARD_MAX_BYTES = 900 * 1024
 const PHOTO_QUALITY_START = 0.72
-const PHOTO_QUALITY_MIN = 0.3
-const PHOTO_QUALITY_STEP = 0.07
+const PHOTO_QUALITY_MIN = 0.2
+const PHOTO_QUALITY_STEP = 0.05
 
 function cleanValue(value) {
   return String(value ?? '').trim()
@@ -309,7 +309,7 @@ async function compressRevisionPhoto(file) {
       quality -= PHOTO_QUALITY_STEP
     }
 
-    dimensionLimit = Math.round(dimensionLimit * 0.8)
+    dimensionLimit = Math.round(dimensionLimit * 0.75)
   }
 
   if (bestBlob && bestBlob.size <= PHOTO_HARD_MAX_BYTES) {

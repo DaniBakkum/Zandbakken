@@ -148,6 +148,7 @@
 - Keep commits focused and update this changelog before pushing project changes.
 
 ## Changelog
+- 2026-04-20: Relaxed revision photo compression thresholds to reduce upload rejections. Compression now tries more aggressive resize/quality rounds (`PHOTO_MIN_DIMENSION` lowered, `PHOTO_QUALITY_MIN` lowered, smaller quality steps) and accepts a larger fallback hard limit (target now ~300 KB, hard cap 900 KB), so normal phone photos fail less often while still being compressed to WebP. Verified with `npm run lint` and `npm run build`.
 - 2026-04-20: Updated map marker visual distinction between schools and user location. Replaced the `Mijn locatie` marker with a custom blue crosshair icon and changed `mobiel/knijper` school marker color from blue to purple so school bolletjes are no longer blue. Verified with `npm run lint` and `npm run build`.
 - 2026-04-20: Merged materieel categories and added canonical server migration. Frontend now normalizes to `mobiel/knijper`, `kraantje/shovel`, or `Onbekend` (including revision equipment), filters/dropdowns/markers only use these values, and both dev (`vite.config.js`) and production (`api/rows.js`) `/api/rows` paths now normalize on `GET`/`PUT` and auto-migrate legacy values on read (best effort). Verified with `npm run lint` and `npm run build`.
 - 2026-04-20: Fixed materieel multi-select behavior after `Alles verbergen`. Selecting one materieel from an empty selection now correctly shows only that selected option instead of all others. Verified with `npm run lint` and `npm run build`.
