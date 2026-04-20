@@ -29,14 +29,34 @@
 }
 
 .source-pill {
+  align-items: center;
+  appearance: none;
   background: #e0f2fe;
   border: 1px solid #bae6fd;
   border-radius: 8px;
   color: #075985;
+  cursor: pointer;
+  display: inline-flex;
   font-size: 14px;
+  font: inherit;
   font-weight: 700;
+  justify-content: center;
   padding: 9px 12px;
+  transition:
+    background-color 180ms ease,
+    border-color 180ms ease,
+    color 180ms ease;
   white-space: nowrap;
+}
+
+.source-pill:hover {
+  background: #dbeafe;
+}
+
+.source-pill.admin-active {
+  background: #dcfce7;
+  border-color: #bbf7d0;
+  color: #166534;
 }
 
 .filters,
@@ -629,6 +649,36 @@ tbody tr.selected {
   font-size: 14px;
   font-weight: 700;
   margin: 0;
+}
+
+.auth-panel {
+  background: #ffffff;
+  border: 1px solid #d8dee9;
+  border-radius: 8px;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.28);
+  display: grid;
+  gap: 14px;
+  max-width: 440px;
+  padding: 20px;
+  width: 100%;
+}
+
+.auth-header h2 {
+  color: #0f172a;
+  font-size: 24px;
+  line-height: 1.15;
+  margin: 0;
+}
+
+.auth-error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  color: #b91c1c;
+  font-size: 14px;
+  font-weight: 700;
+  margin: 0;
+  padding: 8px 10px;
 }
 
 @media (max-width: 1180px) {

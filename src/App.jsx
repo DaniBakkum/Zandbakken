@@ -9,6 +9,7 @@ const ROWS_API_URL = '/api/rows'
 const STORAGE_KEY = 'zandbak-dashboard-rows'
 const MAP_CENTER = [52.466, 4.81]
 const MOBILE_QUERY = '(max-width: 760px)'
+const ADMIN_PASSWORD = 'Sturm1505!'
 const UNKNOWN_VALUES = new Set(['', '?', '-'])
 const EQUIPMENT_COLORS = {
   Mobiel: { fill: '#2563eb', stroke: '#1e3a8a' },
@@ -317,6 +318,10 @@ function App() {
   const [userLocation, setUserLocation] = useState(null)
   const [locationState, setLocationState] = useState('idle')
   const [locationError, setLocationError] = useState('')
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false)
+  const [adminPasswordInput, setAdminPasswordInput] = useState('')
+  const [adminAuthError, setAdminAuthError] = useState('')
 
   useEffect(() => {
     async function loadRows() {
@@ -348,19 +353,22 @@ function App() {
   }, [])
 
   useEffect(() => {
-    if (!editDraft) {
+    if (!editDraft && !isAuthModalOpen) {
       return undefined
     }
 
     function handleKeyDown(event) {
       if (event.key === 'Escape') {
         setEditDraft(null)
+        setIsAuthModalOpen(false)
+        setAdminPasswordInput('')
+        setAdminAuthError('')
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [editDraft])
+  }, [editDraft, isAuthModalOpen])
 
   const boardOptions = useMemo(() => getOptionValues(rows, 'board'), [rows])
   const cityOptions = useMemo(() => getOptionValues(rows, 'city'), [rows])
@@ -429,8 +437,46 @@ function App() {
   }
 
   function openEditor(row) {
+    if (!isAdmin) {
+      return
+    }
+
     setSelectedId(row.id)
     setEditDraft(rowToDraft(row))
+  }
+
+  function openAdminAuthModal() {
+    setAdminAuthError('')
+    setAdminPasswordInput('')
+    setIsAuthModalOpen(true)
+  }
+
+  function closeAdminAuthModal() {
+    setIsAuthModalOpen(false)
+    setAdminPasswordInput('')
+    setAdminAuthError('')
+  }
+
+  function toggleAdminAccess() {
+    if (isAdmin) {
+      setIsAdmin(false)
+      setEditDraft(null)
+      return
+    }
+
+    openAdminAuthModal()
+  }
+
+  function submitAdminAuth(event) {
+    event.preventDefault()
+
+    if (adminPasswordInput === ADMIN_PASSWORD) {
+      setIsAdmin(true)
+      closeAdminAuthModal()
+      return
+    }
+
+    setAdminAuthError('Onjuist wachtwoord. Probeer het opnieuw.')
   }
 
   function selectMobileLocation(row) {
@@ -522,7 +568,14 @@ function App() {
           <p className="eyebrow">Planning zandbakken</p>
           <h1>Zandbak dashboard</h1>
         </div>
-        <div className="source-pill">Bron: public/planning-zandbakken.csv</div>
+        <button
+          type="button"
+          className={`source-pill ${isAdmin ? 'admin-active' : ''}`}
+          onClick={toggleAdminAccess}
+          aria-pressed={isAdmin}
+        >
+          {isAdmin ? 'Admin actief (klik om uit te loggen)' : 'Bron: public/planning-zandbakken.csv'}
+        </button>
       </header>
 
       {loadState === 'error' ? (
@@ -728,6 +781,9 @@ function App() {
                           click: () => setSelectedId(row.id),
                           contextmenu: (event) => {
                             event.originalEvent.preventDefault()
+                            if (!isAdmin) {
+                              return
+                            }
                             openEditor(row)
                           },
                         }}
@@ -750,9 +806,11 @@ function App() {
                             >
                               Routebeschrijving
                             </a>
-                            <button type="button" className="popup-edit-button" onClick={() => openEditor(row)}>
-                              Bewerken
-                            </button>
+                            {isAdmin && (
+                              <button type="button" className="popup-edit-button" onClick={() => openEditor(row)}>
+                                Bewerken
+                              </button>
+                            )}
                           </div>
                           {row.needsCheck && <em>Gegevens controleren</em>}
                         </Popup>
@@ -904,9 +962,11 @@ function App() {
                       >
                         Route
                       </a>
-                      <button type="button" className="secondary-button compact" onClick={() => openEditor(row)}>
-                        Bewerken
-                      </button>
+                      {isAdmin && (
+                        <button type="button" className="secondary-button compact" onClick={() => openEditor(row)}>
+                          Bewerken
+                        </button>
+                      )}
                     </div>
                   </article>
                 ))}
@@ -1004,6 +1064,42 @@ function App() {
                   </button>
                   <button type="submit" className="primary-button" disabled={isSaving}>
                     {isSaving ? 'Opslaan...' : 'Opslaan'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {isAuthModalOpen && (
+            <div className="edit-overlay" role="presentation" onClick={closeAdminAuthModal}>
+              <form
+                className="auth-panel"
+                onSubmit={submitAdminAuth}
+                onClick={(event) => event.stopPropagation()}
+              >
+                <div className="auth-header">
+                  <p className="eyebrow">Beheerderstoegang</p>
+                  <h2>Wachtwoord vereist</h2>
+                </div>
+
+                <label className="field">
+                  <span>Wachtwoord</span>
+                  <input
+                    autoFocus
+                    type="password"
+                    value={adminPasswordInput}
+                    onChange={(event) => setAdminPasswordInput(event.target.value)}
+                  />
+                </label>
+
+                {adminAuthError && <p className="auth-error">{adminAuthError}</p>}
+
+                <div className="edit-actions">
+                  <button type="button" className="secondary-button" onClick={closeAdminAuthModal}>
+                    Annuleren
+                  </button>
+                  <button type="submit" className="primary-button">
+                    Inloggen
                   </button>
                 </div>
               </form>

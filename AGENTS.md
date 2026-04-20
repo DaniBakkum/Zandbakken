@@ -45,7 +45,7 @@
   - `Kaart` / `Locaties` segmented control.
   - Filters behind a compact `Filters` button.
   - Location list as touch-friendly cards instead of a wide table.
-  - Map popups include a `Bewerken` button because mobile users cannot right-click.
+  - Map popups and location cards only show `Bewerken` when admin mode is active.
 - Filters are above the map:
   - Search
   - Bestuur dropdown
@@ -65,7 +65,9 @@
 
 ## Editing Behavior
 - Desktop: right-click a map marker to open the edit card.
-- Mobile: tap a marker and use `Bewerken` in the popup, or use `Bewerken` on a location card.
+- Mobile: tap a marker and use `Bewerken` in the popup, or use `Bewerken` on a location card, only when admin mode is active.
+- Admin mode is opened by clicking the top-right `Bron` pill and entering the password `Sturm1505!`.
+- Clicking the `Bron` pill again logs out admin and immediately disables all edit entry points.
 - Editable fields:
   - School
   - Bestuur
@@ -119,6 +121,7 @@
 - Keep commits focused and update this changelog before pushing project changes.
 
 ## Changelog
+- 2026-04-20: Added password-gated admin edit mode via the top-right `Bron` pill in `src/App.jsx`. Editing is now hidden/blocked for regular users (popup button, mobile card button, and marker right-click), and only becomes available after entering admin password `Sturm1505!`; clicking the pill again logs out admin and closes active edit state. Added auth modal and source-pill/admin visual styles in `src/App.css`. Verified with `npm run lint` and `npm run build`.
 - 2026-04-18: Added `AGENTS.md` as project handoff documentation. Documented project structure, CSV/data rules, UX behavior, right-click edit flow, localStorage behavior, corrected addresses, dependencies, run commands, and future-agent cautions. Verified app was running at `http://127.0.0.1:5173` with HTTP `200 OK`.
 - 2026-04-18: Added this changelog and the rule that every future project change must be recorded in `AGENTS.md`. No app code changed.
 - 2026-04-18: Added persistent server-side edit storage. `vite.config.js` now exposes `GET /api/rows` and `PUT /api/rows`; browser edits save to `data/planning-overrides.json` and survive rebuilds. App still falls back to CSV/localStorage when no server data exists. Verified with `npm run lint`, `npm run build`, app HTTP `200`, API GET returning 40 rows, API PUT returning `ok: true`, and confirmed `data/planning-overrides.json` exists.
