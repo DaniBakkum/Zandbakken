@@ -43,6 +43,14 @@
   - `equipment` (string)
   - `notes` (string)
   - `completedAt` (ISO timestamp or `null`)
+  - `photos` (array, max 3) with compressed WebP data and metadata:
+    - `id`
+    - `dataUrl`
+    - `mimeType`
+    - `width`
+    - `height`
+    - `sizeBytes`
+    - `createdAt`
 
 ## Current UX
 - Desktop is used above `760px`; mobile is used at `760px` and below via `matchMedia('(max-width: 760px)')`.
@@ -72,6 +80,8 @@
   - `Zandbak afronden` to save completed work
   - `Revisie aanpassen` after completion
   - `Opnieuw openzetten` to remove completed state
+- Revisiekaart supports adding up to 3 photos per location, client-compressed to WebP before save, with replace/remove support.
+- Completed popup summary can show photo thumbnails that open in a larger preview overlay.
 
 ## Editing Behavior
 - Desktop: right-click a map marker to open the edit card.
@@ -140,6 +150,8 @@
 - Keep commits focused and update this changelog before pushing project changes.
 
 ## Changelog
+- 2026-04-20: Added revision photo support with client-side compression and server persistence. Users can add up to 3 photos in the revision modal, images are resized/compressed to WebP before save (target ~250 KB per photo), and photos can be replaced or removed. Stored photos now persist inside `revision.photos` and appear as thumbnails in completed popup summaries with a click-to-enlarge preview. Verified with `npm run lint` and `npm run build`.
+- 2026-04-20: Updated materieel filter toggle control behavior. The bottom action now shows `Alles verbergen` when all materieel options are selected and switches to `Alles tonen` when one or more options are off. Clicking the action now toggles between all-selected and none-selected states. Verified with `npm run lint` and `npm run build`.
 - 2026-04-20: Fixed materieel filter UX issues. Deduplicated `Onbekend` so it appears once, changed `Alles tonen` to visibly select all checkbox options, and adjusted materieel dropdown typography to align better with other filter controls. Verified with `npm run lint` and `npm run build`.
 - 2026-04-20: Simplified top filter bar to only two filters: `Materieel` and `Afronding` (revision completion state). Removed search, bestuur, plaats, and the old status filter from the UI and filtering logic. Verified with `npm run lint` and `npm run build`.
 - 2026-04-20: Updated Google Maps route links to use row coordinates (`location.lat`, `location.lng`) instead of address text when available, so navigation matches marker positions after manual marker moves. Address-based destination remains as fallback for rows without coordinates. Verified with `npm run lint` and `npm run build`.

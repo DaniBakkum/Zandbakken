@@ -24,6 +24,12 @@ const STATUS_OPTIONS = [
   { label: 'Afgerond', value: 'done' },
   { label: 'Niet afgerond', value: 'open' },
 ]
+const MAX_REVISION_PHOTOS = 3
+const PHOTO_MAX_DIMENSION = 1280
+const PHOTO_TARGET_BYTES = 250 * 1024
+const PHOTO_QUALITY_START = 0.72
+const PHOTO_QUALITY_MIN = 0.42
+const PHOTO_QUALITY_STEP = 0.08
 
 function cleanValue(value) {
   return String(value ?? '').trim()
@@ -90,6 +96,14 @@ function formatTimestamp(value) {
   })
 }
 
+function formatBytes(value) {
+  if (!Number.isFinite(value) || value <= 0) {
+    return '0 KB'
+  }
+
+  return `${Math.round(value / 1024)} KB`
+}
+
 function equipmentLabel(equipment) {
   return UNKNOWN_VALUES.has(equipment) ? 'Onbekend' : equipment
 }
@@ -114,6 +128,137 @@ function makeLocationKey(row) {
   return `${cleanValue(row.school)}|${cleanValue(row.street)}|${cleanValue(row.city)}`
 }
 
+function estimateDataUrlBytes(dataUrl) {
+  if (typeof dataUrl !== 'string') {
+    return 0
+  }
+
+  const [, base64 = ''] = dataUrl.split(',', 2)
+  const padding = (base64.match(/=*$/)?.[0].length ?? 0)
+  return Math.max(0, Math.floor((base64.length * 3) / 4) - padding)
+}
+
+function normalizeRevisionPhotos(photos) {
+  if (!Array.isArray(photos)) {
+    return []
+  }
+
+  return photos
+    .slice(0, MAX_REVISION_PHOTOS)
+    .map((photo, index) => {
+      const dataUrl = typeof photo?.dataUrl === 'string' ? photo.dataUrl : ''
+
+      if (!dataUrl.startsWith('data:image/')) {
+        return null
+      }
+
+      return {
+        id: cleanValue(photo?.id) || `photo-${Date.now()}-${index}`,
+        dataUrl,
+        mimeType: cleanValue(photo?.mimeType) || 'image/webp',
+        width: Number.isFinite(photo?.width) ? Number(photo.width) : 0,
+        height: Number.isFinite(photo?.height) ? Number(photo.height) : 0,
+        sizeBytes: Number.isFinite(photo?.sizeBytes) ? Number(photo.sizeBytes) : estimateDataUrlBytes(dataUrl),
+        createdAt: photo?.createdAt ? String(photo.createdAt) : new Date().toISOString(),
+      }
+    })
+    .filter(Boolean)
+}
+
+function readFileAsImage(file) {
+  return new Promise((resolve, reject) => {
+    const image = new Image()
+    const objectUrl = URL.createObjectURL(file)
+
+    image.onload = () => {
+      URL.revokeObjectURL(objectUrl)
+      resolve(image)
+    }
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl)
+      reject(new Error('Bestand kon niet als afbeelding worden gelezen.'))
+    }
+
+    image.src = objectUrl
+  })
+}
+
+function canvasToWebpBlob(canvas, quality) {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => {
+        if (blob) {
+          resolve(blob)
+          return
+        }
+
+        reject(new Error('Afbeelding kon niet worden gecomprimeerd.'))
+      },
+      'image/webp',
+      quality,
+    )
+  })
+}
+
+function blobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result ?? ''))
+    reader.onerror = () => reject(new Error('Afbeelding kon niet worden omgezet naar data.'))
+    reader.readAsDataURL(blob)
+  })
+}
+
+async function compressRevisionPhoto(file) {
+  if (!(file instanceof File) || !file.type.startsWith('image/')) {
+    throw new Error('Alleen afbeeldingsbestanden zijn toegestaan.')
+  }
+
+  const image = await readFileAsImage(file)
+  const sourceWidth = Number(image.naturalWidth) || Number(image.width) || 0
+  const sourceHeight = Number(image.naturalHeight) || Number(image.height) || 0
+
+  if (sourceWidth <= 0 || sourceHeight <= 0) {
+    throw new Error('Afbeeldingsafmetingen zijn ongeldig.')
+  }
+
+  const scale = Math.min(1, PHOTO_MAX_DIMENSION / Math.max(sourceWidth, sourceHeight))
+  const width = Math.max(1, Math.round(sourceWidth * scale))
+  const height = Math.max(1, Math.round(sourceHeight * scale))
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
+
+  const context = canvas.getContext('2d')
+  if (!context) {
+    throw new Error('Canvas wordt niet ondersteund door deze browser.')
+  }
+
+  context.drawImage(image, 0, 0, width, height)
+
+  let quality = PHOTO_QUALITY_START
+  let blob = await canvasToWebpBlob(canvas, quality)
+
+  while (blob.size > PHOTO_TARGET_BYTES && quality > PHOTO_QUALITY_MIN) {
+    quality = Math.max(PHOTO_QUALITY_MIN, quality - PHOTO_QUALITY_STEP)
+    blob = await canvasToWebpBlob(canvas, quality)
+  }
+
+  if (blob.size > PHOTO_TARGET_BYTES) {
+    throw new Error('Foto is na compressie nog te groot. Kies een kleinere afbeelding.')
+  }
+
+  return {
+    id: `photo-${Date.now()}-${Math.floor(Math.random() * 100000)}`,
+    dataUrl: await blobToDataUrl(blob),
+    mimeType: 'image/webp',
+    width,
+    height,
+    sizeBytes: blob.size,
+    createdAt: new Date().toISOString(),
+  }
+}
+
 function normalizeRevision(revision) {
   return {
     completed: Boolean(revision?.completed),
@@ -122,6 +267,7 @@ function normalizeRevision(revision) {
     equipment: cleanValue(revision?.equipment),
     notes: cleanValue(revision?.notes),
     completedAt: revision?.completedAt ? String(revision.completedAt) : null,
+    photos: normalizeRevisionPhotos(revision?.photos),
   }
 }
 
@@ -282,6 +428,7 @@ function rowToRevisionDraft(row) {
     incomingRaw: row.revision.incomingRaw || row.incomingRaw,
     equipment: row.revision.equipment || equipmentLabel(row.equipment),
     notes: row.revision.notes,
+    photos: normalizeRevisionPhotos(row.revision.photos),
   }
 }
 
@@ -295,6 +442,7 @@ function revisionDraftToRow(currentRow, draft) {
       equipment: cleanValue(draft.equipment),
       notes: cleanValue(draft.notes),
       completedAt: new Date().toISOString(),
+      photos: normalizeRevisionPhotos(draft.photos),
     },
   }
 }
@@ -438,6 +586,9 @@ function App() {
   const [revisionSaveError, setRevisionSaveError] = useState('')
   const [isCreateSaving, setIsCreateSaving] = useState(false)
   const [isRevisionSaving, setIsRevisionSaving] = useState(false)
+  const [revisionPhotoError, setRevisionPhotoError] = useState('')
+  const [isPhotoProcessing, setIsPhotoProcessing] = useState(false)
+  const [photoPreview, setPhotoPreview] = useState(null)
   const [mobileView, setMobileView] = useState('map')
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false)
   const [userLocation, setUserLocation] = useState(null)
@@ -461,12 +612,16 @@ function App() {
         const serverRows = await loadServerRows()
         const storedRows = loadStoredRows()
         const parsedRows = serverRows ?? storedRows ?? csvRows
+        const parsedEquipmentOptions = [
+          ...new Set(parsedRows.map((row) => equipmentLabel(row.equipment)).filter(Boolean)),
+        ].sort((a, b) => a.localeCompare(b, 'nl'))
 
         if (!serverRows && storedRows) {
           saveRowsToServer(storedRows).catch(() => {})
         }
 
         setRows(parsedRows)
+        setFilters((current) => ({ ...current, equipment: parsedEquipmentOptions }))
         setSelectedId(parsedRows[0]?.id ?? null)
         setLoadState('ready')
       } catch {
@@ -478,7 +633,7 @@ function App() {
   }, [])
 
   useEffect(() => {
-    if (!editDraft && !revisionDraft && !createDraft && !isAuthModalOpen) {
+    if (!editDraft && !revisionDraft && !createDraft && !isAuthModalOpen && !photoPreview) {
       return undefined
     }
 
@@ -490,6 +645,8 @@ function App() {
         setDragTargetId(null)
         setCreateSaveError('')
         setRevisionSaveError('')
+        setRevisionPhotoError('')
+        setPhotoPreview(null)
         setIsAuthModalOpen(false)
         setAdminPasswordInput('')
         setAdminAuthError('')
@@ -498,7 +655,7 @@ function App() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [editDraft, revisionDraft, createDraft, isAuthModalOpen])
+  }, [editDraft, revisionDraft, createDraft, isAuthModalOpen, photoPreview])
 
   const equipmentOptions = useMemo(
     () =>
@@ -507,15 +664,12 @@ function App() {
       ),
     [rows],
   )
-  const activeEquipmentFilters = useMemo(
-    () => (filters.equipment.length === 0 ? equipmentOptions : filters.equipment),
-    [equipmentOptions, filters.equipment],
-  )
+  const allEquipmentSelected =
+    equipmentOptions.length > 0 && filters.equipment.length === equipmentOptions.length
 
   const filteredRows = useMemo(() => {
     return rows.filter((row) => {
-      const matchesEquipment =
-        activeEquipmentFilters.length === 0 || activeEquipmentFilters.includes(equipmentLabel(row.equipment))
+      const matchesEquipment = filters.equipment.includes(equipmentLabel(row.equipment))
       const matchesCompletion =
         filters.completion === 'all' ||
         (filters.completion === 'done' && row.revision.completed) ||
@@ -523,7 +677,7 @@ function App() {
 
       return matchesEquipment && matchesCompletion
     })
-  }, [activeEquipmentFilters, filters.completion, rows])
+  }, [filters.completion, filters.equipment, rows])
 
   const sortedRows = useMemo(() => sortRows(filteredRows, sortConfig), [filteredRows, sortConfig])
   const selectedRow = useMemo(
@@ -547,8 +701,12 @@ function App() {
   }
 
   function equipmentFilterLabel() {
-    if (filters.equipment.length === 0 || filters.equipment.length === equipmentOptions.length) {
+    if (allEquipmentSelected) {
       return 'Alle materieel'
+    }
+
+    if (filters.equipment.length === 0) {
+      return 'Geen materieel'
     }
 
     if (filters.equipment.length === 1) {
@@ -592,6 +750,8 @@ function App() {
     setSaveError('')
     setEditDraft(null)
     setRevisionSaveError('')
+    setRevisionPhotoError('')
+    setIsPhotoProcessing(false)
     setRevisionDraft(rowToRevisionDraft(row))
   }
 
@@ -674,6 +834,107 @@ function App() {
 
   function updateRevisionDraft(name, value) {
     setRevisionDraft((current) => ({ ...current, [name]: value }))
+  }
+
+  function closeRevisionModal() {
+    setRevisionDraft(null)
+    setRevisionSaveError('')
+    setRevisionPhotoError('')
+    setIsPhotoProcessing(false)
+  }
+
+  function closePhotoPreview() {
+    setPhotoPreview(null)
+  }
+
+  function openPhotoPreview(photo, title) {
+    setPhotoPreview({
+      dataUrl: photo.dataUrl,
+      label: title,
+    })
+  }
+
+  async function addRevisionPhotos(fileList) {
+    if (!revisionDraft || !fileList || fileList.length === 0) {
+      return
+    }
+
+    const files = Array.from(fileList)
+    const currentPhotos = normalizeRevisionPhotos(revisionDraft.photos)
+    const remaining = Math.max(0, MAX_REVISION_PHOTOS - currentPhotos.length)
+
+    if (remaining <= 0) {
+      setRevisionPhotoError(`Je kunt maximaal ${MAX_REVISION_PHOTOS} foto's toevoegen.`)
+      return
+    }
+
+    setRevisionPhotoError('')
+    setIsPhotoProcessing(true)
+    const pickedFiles = files.slice(0, remaining)
+    const errors = []
+    const appended = []
+
+    for (const file of pickedFiles) {
+      try {
+        const photo = await compressRevisionPhoto(file)
+        appended.push(photo)
+      } catch (error) {
+        errors.push(error instanceof Error ? error.message : 'Foto kon niet worden verwerkt.')
+      }
+    }
+
+    if (files.length > remaining) {
+      errors.push(`Maximaal ${MAX_REVISION_PHOTOS} foto's per revisie.`)
+    }
+
+    setRevisionDraft((current) => {
+      if (!current) {
+        return current
+      }
+
+      const nextPhotos = normalizeRevisionPhotos([...normalizeRevisionPhotos(current.photos), ...appended])
+      return { ...current, photos: nextPhotos }
+    })
+    setRevisionPhotoError(errors.join(' '))
+    setIsPhotoProcessing(false)
+  }
+
+  async function replaceRevisionPhoto(photoId, file) {
+    if (!revisionDraft || !file) {
+      return
+    }
+
+    setRevisionPhotoError('')
+    setIsPhotoProcessing(true)
+
+    try {
+      const nextPhoto = await compressRevisionPhoto(file)
+      setRevisionDraft((current) => {
+        if (!current) {
+          return current
+        }
+
+        const nextPhotos = normalizeRevisionPhotos(current.photos).map((photo) =>
+          photo.id === photoId ? { ...nextPhoto, id: photo.id, createdAt: photo.createdAt } : photo,
+        )
+        return { ...current, photos: nextPhotos }
+      })
+    } catch (error) {
+      setRevisionPhotoError(error instanceof Error ? error.message : 'Foto kon niet worden vervangen.')
+    }
+
+    setIsPhotoProcessing(false)
+  }
+
+  function removeRevisionPhoto(photoId) {
+    setRevisionDraft((current) => {
+      if (!current) {
+        return current
+      }
+
+      const nextPhotos = normalizeRevisionPhotos(current.photos).filter((photo) => photo.id !== photoId)
+      return { ...current, photos: nextPhotos }
+    })
   }
 
   function updateCreateDraft(name, value) {
@@ -925,7 +1186,7 @@ function App() {
                         <label key={option} className="check-option">
                           <input
                             type="checkbox"
-                            checked={activeEquipmentFilters.includes(option)}
+                            checked={filters.equipment.includes(option)}
                             onChange={() => toggleEquipmentFilter(option)}
                           />
                           <i
@@ -940,13 +1201,15 @@ function App() {
                         </label>
                       )
                     })}
-                    {filters.equipment.length > 0 && (
+                    {equipmentOptions.length > 0 && (
                       <button
                         type="button"
                         className="clear-filter"
-                        onClick={() => updateFilter('equipment', [...equipmentOptions])}
+                        onClick={() =>
+                          updateFilter('equipment', allEquipmentSelected ? [] : [...equipmentOptions])
+                        }
                       >
-                        Alles tonen
+                        {allEquipmentSelected ? 'Alles verbergen' : 'Alles tonen'}
                       </button>
                     )}
                   </div>
@@ -1065,6 +1328,26 @@ function App() {
                               <span>m3 in uitgevoerd: {formatVolume(parseDutchNumber(row.revision.incomingRaw))}</span>
                               <span>Materieel uitgevoerd: {equipmentLabel(row.revision.equipment)}</span>
                               {row.revision.notes && <span>Opmerkingen: {row.revision.notes}</span>}
+                              {row.revision.photos.length > 0 && (
+                                <div className="revision-photo-strip">
+                                  {row.revision.photos.map((photo, index) => (
+                                    <button
+                                      key={photo.id}
+                                      type="button"
+                                      className="revision-photo-thumb-button"
+                                      onClick={() => openPhotoPreview(photo, `${row.school} foto ${index + 1}`)}
+                                      title="Foto vergroten"
+                                    >
+                                      <img
+                                        className="revision-photo-thumb"
+                                        src={photo.dataUrl}
+                                        alt={`${row.school} revisie foto ${index + 1}`}
+                                        loading="lazy"
+                                      />
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
                               <span>Afgerond op: {formatTimestamp(row.revision.completedAt)}</span>
                             </div>
                           )}
@@ -1399,10 +1682,7 @@ function App() {
             <div
               className="edit-overlay"
               role="presentation"
-              onClick={() => {
-                setRevisionDraft(null)
-                setRevisionSaveError('')
-              }}
+              onClick={closeRevisionModal}
             >
               <form
                 className="revision-panel"
@@ -1417,10 +1697,7 @@ function App() {
                   <button
                     type="button"
                     className="icon-button"
-                    onClick={() => {
-                      setRevisionDraft(null)
-                      setRevisionSaveError('')
-                    }}
+                    onClick={closeRevisionModal}
                     aria-label="Revisie sluiten"
                     title="Revisie sluiten"
                   >
@@ -1464,6 +1741,67 @@ function App() {
                       onChange={(event) => updateRevisionDraft('notes', event.target.value)}
                     />
                   </label>
+                  <div className="field wide revision-photo-field">
+                    <span>Foto's (max 3)</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      disabled={isPhotoProcessing || revisionDraft.photos.length >= MAX_REVISION_PHOTOS}
+                      onChange={(event) => {
+                        addRevisionPhotos(event.target.files)
+                        event.target.value = ''
+                      }}
+                    />
+                    {isPhotoProcessing && <p className="photo-processing">Foto wordt gecomprimeerd...</p>}
+                    {revisionPhotoError && <p className="save-error">{revisionPhotoError}</p>}
+                    {revisionDraft.photos.length > 0 && (
+                      <div className="revision-photo-grid">
+                        {revisionDraft.photos.map((photo, index) => (
+                          <article key={photo.id} className="revision-photo-card">
+                            <button
+                              type="button"
+                              className="revision-photo-thumb-button"
+                              onClick={() => openPhotoPreview(photo, `${revisionDraft.school} foto ${index + 1}`)}
+                            >
+                              <img
+                                className="revision-photo-thumb"
+                                src={photo.dataUrl}
+                                alt={`${revisionDraft.school} revisie foto ${index + 1}`}
+                                loading="lazy"
+                              />
+                            </button>
+                            <p className="revision-photo-meta">
+                              {photo.width}x{photo.height} | {formatBytes(photo.sizeBytes)}
+                            </p>
+                            <div className="photo-card-actions">
+                              <label className="secondary-button compact file-button">
+                                Vervangen
+                                <input
+                                  className="file-hidden"
+                                  type="file"
+                                  accept="image/*"
+                                  disabled={isPhotoProcessing}
+                                  onChange={(event) => {
+                                    replaceRevisionPhoto(photo.id, event.target.files?.[0])
+                                    event.target.value = ''
+                                  }}
+                                />
+                              </label>
+                              <button
+                                type="button"
+                                className="secondary-button compact"
+                                onClick={() => removeRevisionPhoto(photo.id)}
+                                disabled={isPhotoProcessing}
+                              >
+                                Verwijderen
+                              </button>
+                            </div>
+                          </article>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div className="edit-actions">
@@ -1471,14 +1809,11 @@ function App() {
                   <button
                     type="button"
                     className="secondary-button"
-                    onClick={() => {
-                      setRevisionDraft(null)
-                      setRevisionSaveError('')
-                    }}
+                    onClick={closeRevisionModal}
                   >
                     Annuleren
                   </button>
-                  <button type="submit" className="primary-button" disabled={isRevisionSaving}>
+                  <button type="submit" className="primary-button" disabled={isRevisionSaving || isPhotoProcessing}>
                     {isRevisionSaving ? 'Opslaan...' : 'Afronden opslaan'}
                   </button>
                 </div>
@@ -1586,6 +1921,19 @@ function App() {
                   </button>
                 </div>
               </form>
+            </div>
+          )}
+
+          {photoPreview && (
+            <div className="edit-overlay photo-preview-overlay" role="presentation" onClick={closePhotoPreview}>
+              <div className="photo-preview-panel" onClick={(event) => event.stopPropagation()}>
+                <img className="photo-preview-image" src={photoPreview.dataUrl} alt={photoPreview.label} />
+                <div className="edit-actions">
+                  <button type="button" className="secondary-button" onClick={closePhotoPreview}>
+                    Sluiten
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 

@@ -434,6 +434,107 @@ button:focus-visible {
   font-size: 13px;
 }
 
+.revision-photo-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.revision-photo-thumb-button {
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  padding: 0;
+}
+
+.revision-photo-thumb {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  display: block;
+  height: 78px;
+  object-fit: cover;
+  width: 98px;
+}
+
+.revision-photo-field input[type='file'] {
+  padding: 9px 10px;
+}
+
+.photo-processing {
+  color: #0f766e;
+  font-size: 13px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.revision-photo-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(146px, 1fr));
+}
+
+.revision-photo-card {
+  border: 1px solid #d8dee9;
+  border-radius: 8px;
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+}
+
+.revision-photo-card .revision-photo-thumb {
+  height: 96px;
+  width: 100%;
+}
+
+.revision-photo-meta {
+  color: #475569;
+  font-size: 12px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.photo-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.file-button {
+  align-items: center;
+  display: inline-flex;
+  justify-content: center;
+  position: relative;
+}
+
+.file-hidden {
+  display: none;
+}
+
+.photo-preview-overlay {
+  z-index: 1300;
+}
+
+.photo-preview-panel {
+  background: #ffffff;
+  border: 1px solid #d8dee9;
+  border-radius: 10px;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.28);
+  max-height: calc(100vh - 48px);
+  max-width: min(920px, calc(100vw - 24px));
+  overflow: auto;
+  padding: 14px;
+  width: 100%;
+}
+
+.photo-preview-image {
+  border-radius: 8px;
+  display: block;
+  max-height: calc(100vh - 170px);
+  object-fit: contain;
+  width: 100%;
+}
+
 .table-panel {
   bottom: 18px;
   min-width: 0;
