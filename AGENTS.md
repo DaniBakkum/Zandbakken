@@ -140,6 +140,7 @@
 - Keep commits focused and update this changelog before pushing project changes.
 
 ## Changelog
+- 2026-04-20: Fixed materieel filter UX issues. Deduplicated `Onbekend` so it appears once, changed `Alles tonen` to visibly select all checkbox options, and adjusted materieel dropdown typography to align better with other filter controls. Verified with `npm run lint` and `npm run build`.
 - 2026-04-20: Simplified top filter bar to only two filters: `Materieel` and `Afronding` (revision completion state). Removed search, bestuur, plaats, and the old status filter from the UI and filtering logic. Verified with `npm run lint` and `npm run build`.
 - 2026-04-20: Updated Google Maps route links to use row coordinates (`location.lat`, `location.lng`) instead of address text when available, so navigation matches marker positions after manual marker moves. Address-based destination remains as fallback for rows without coordinates. Verified with `npm run lint` and `npm run build`.
 - 2026-04-20: Added admin school management actions. Admin users can now add new schools (`School toevoegen`) and remove existing schools (`School verwijderen`) directly from the dashboard UI. New and deleted rows are saved immediately through `/api/rows` with local fallback on save failure. Verified with `npm run lint` and `npm run build`.

@@ -353,12 +353,6 @@ async function saveRowsToServer(rows) {
   return response.json()
 }
 
-function getOptionValues(rows, field) {
-  return [...new Set(rows.map((row) => row[field]).filter(Boolean))].sort((a, b) =>
-    a.localeCompare(b, 'nl'),
-  )
-}
-
 function sortRows(rows, sortConfig) {
   return [...rows].sort((a, b) => {
     const direction = sortConfig.direction === 'asc' ? 1 : -1
@@ -506,12 +500,22 @@ function App() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [editDraft, revisionDraft, createDraft, isAuthModalOpen])
 
-  const equipmentOptions = useMemo(() => getOptionValues(rows, 'equipment'), [rows])
+  const equipmentOptions = useMemo(
+    () =>
+      [...new Set(rows.map((row) => equipmentLabel(row.equipment)).filter(Boolean))].sort((a, b) =>
+        a.localeCompare(b, 'nl'),
+      ),
+    [rows],
+  )
+  const activeEquipmentFilters = useMemo(
+    () => (filters.equipment.length === 0 ? equipmentOptions : filters.equipment),
+    [equipmentOptions, filters.equipment],
+  )
 
   const filteredRows = useMemo(() => {
     return rows.filter((row) => {
       const matchesEquipment =
-        filters.equipment.length === 0 || filters.equipment.includes(equipmentLabel(row.equipment))
+        activeEquipmentFilters.length === 0 || activeEquipmentFilters.includes(equipmentLabel(row.equipment))
       const matchesCompletion =
         filters.completion === 'all' ||
         (filters.completion === 'done' && row.revision.completed) ||
@@ -519,7 +523,7 @@ function App() {
 
       return matchesEquipment && matchesCompletion
     })
-  }, [filters, rows])
+  }, [activeEquipmentFilters, filters.completion, rows])
 
   const sortedRows = useMemo(() => sortRows(filteredRows, sortConfig), [filteredRows, sortConfig])
   const selectedRow = useMemo(
@@ -533,16 +537,17 @@ function App() {
 
   function toggleEquipmentFilter(value) {
     setFilters((current) => {
-      const equipment = current.equipment.includes(value)
-        ? current.equipment.filter((item) => item !== value)
-        : [...current.equipment, value]
+      const selected = current.equipment.length === 0 ? [...equipmentOptions] : [...current.equipment]
+      const equipment = selected.includes(value)
+        ? selected.filter((item) => item !== value)
+        : [...selected, value]
 
       return { ...current, equipment }
     })
   }
 
   function equipmentFilterLabel() {
-    if (filters.equipment.length === 0) {
+    if (filters.equipment.length === 0 || filters.equipment.length === equipmentOptions.length) {
       return 'Alle materieel'
     }
 
@@ -916,14 +921,12 @@ function App() {
                 {isEquipmentMenuOpen && (
                   <div className="multi-dropdown-menu" role="group" aria-label="Materieel filter">
                     {equipmentOptions.map((option) => {
-                      const label = equipmentLabel(option)
-
                       return (
                         <label key={option} className="check-option">
                           <input
                             type="checkbox"
-                            checked={filters.equipment.includes(label)}
-                            onChange={() => toggleEquipmentFilter(label)}
+                            checked={activeEquipmentFilters.includes(option)}
+                            onChange={() => toggleEquipmentFilter(option)}
                           />
                           <i
                             className="equipment-dot"
@@ -933,7 +936,7 @@ function App() {
                             }}
                             aria-hidden="true"
                           />
-                          <span>{label}</span>
+                          <span>{option}</span>
                         </label>
                       )
                     })}
@@ -941,7 +944,7 @@ function App() {
                       <button
                         type="button"
                         className="clear-filter"
-                        onClick={() => updateFilter('equipment', [])}
+                        onClick={() => updateFilter('equipment', [...equipmentOptions])}
                       >
                         Alles tonen
                       </button>
