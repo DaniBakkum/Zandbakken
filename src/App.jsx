@@ -20,9 +20,9 @@ const EQUIPMENT_COLORS = {
   Onbekend: { fill: '#64748b', stroke: '#334155' },
 }
 const STATUS_OPTIONS = [
-  { label: 'Alle statussen', value: 'all' },
-  { label: 'Compleet', value: 'complete' },
-  { label: 'Gegevens controleren', value: 'check' },
+  { label: 'Alle voortgang', value: 'all' },
+  { label: 'Afgerond', value: 'done' },
+  { label: 'Niet afgerond', value: 'open' },
 ]
 
 function cleanValue(value) {
@@ -425,12 +425,9 @@ function App() {
   const isMobile = deviceMode === 'mobile'
   const [rows, setRows] = useState([])
   const [loadState, setLoadState] = useState('loading')
-  const [search, setSearch] = useState('')
   const [filters, setFilters] = useState({
-    board: 'all',
-    city: 'all',
     equipment: [],
-    status: 'all',
+    completion: 'all',
   })
   const [sortConfig, setSortConfig] = useState({ key: 'school', direction: 'asc' })
   const [selectedId, setSelectedId] = useState(null)
@@ -509,32 +506,20 @@ function App() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [editDraft, revisionDraft, createDraft, isAuthModalOpen])
 
-  const boardOptions = useMemo(() => getOptionValues(rows, 'board'), [rows])
-  const cityOptions = useMemo(() => getOptionValues(rows, 'city'), [rows])
   const equipmentOptions = useMemo(() => getOptionValues(rows, 'equipment'), [rows])
 
   const filteredRows = useMemo(() => {
-    const query = search.trim().toLowerCase()
-
     return rows.filter((row) => {
-      const matchesSearch =
-        !query ||
-        [row.school, row.board, row.street, row.city, row.equipment]
-          .join(' ')
-          .toLowerCase()
-          .includes(query)
-      const matchesBoard = filters.board === 'all' || row.board === filters.board
-      const matchesCity = filters.city === 'all' || row.city === filters.city
       const matchesEquipment =
         filters.equipment.length === 0 || filters.equipment.includes(equipmentLabel(row.equipment))
-      const matchesStatus =
-        filters.status === 'all' ||
-        (filters.status === 'complete' && !row.needsCheck) ||
-        (filters.status === 'check' && row.needsCheck)
+      const matchesCompletion =
+        filters.completion === 'all' ||
+        (filters.completion === 'done' && row.revision.completed) ||
+        (filters.completion === 'open' && !row.revision.completed)
 
-      return matchesSearch && matchesBoard && matchesCity && matchesEquipment && matchesStatus
+      return matchesEquipment && matchesCompletion
     })
-  }, [filters, rows, search])
+  }, [filters, rows])
 
   const sortedRows = useMemo(() => sortRows(filteredRows, sortConfig), [filteredRows, sortConfig])
   const selectedRow = useMemo(
@@ -915,40 +900,6 @@ function App() {
             className={`filters ${isMobile && !isMobileFiltersOpen ? 'mobile-hidden' : ''}`}
             aria-label="Filters"
           >
-            <label className="field search-field">
-              <span>Zoeken</span>
-              <input
-                type="search"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="School, adres, plaats of materieel"
-              />
-            </label>
-
-            <label className="field">
-              <span>Bestuur</span>
-              <select value={filters.board} onChange={(event) => updateFilter('board', event.target.value)}>
-                <option value="all">Alle besturen</option>
-                {boardOptions.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="field">
-              <span>Plaats</span>
-              <select value={filters.city} onChange={(event) => updateFilter('city', event.target.value)}>
-                <option value="all">Alle plaatsen</option>
-                {cityOptions.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
-            </label>
-
             <label className="field">
               <span>Materieel</span>
               <div className="multi-dropdown">
@@ -1001,8 +952,11 @@ function App() {
             </label>
 
             <label className="field">
-              <span>Status</span>
-              <select value={filters.status} onChange={(event) => updateFilter('status', event.target.value)}>
+              <span>Afronding</span>
+              <select
+                value={filters.completion}
+                onChange={(event) => updateFilter('completion', event.target.value)}
+              >
                 {STATUS_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}

@@ -72,7 +72,7 @@
   border-radius: 8px;
   display: grid;
   gap: 12px;
-  grid-template-columns: minmax(260px, 1.4fr) repeat(4, minmax(150px, 1fr));
+  grid-template-columns: repeat(2, minmax(220px, 1fr));
   margin-bottom: 18px;
   padding: 14px;
 }

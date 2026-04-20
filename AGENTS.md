@@ -54,11 +54,8 @@
   - Location list as touch-friendly cards instead of a wide table.
   - Map popups and location cards only show `Bewerken` when admin mode is active.
 - Filters are above the map:
-  - Search
-  - Bestuur dropdown
-  - Plaats dropdown
   - Materieel compact multi-select dropdown
-  - Status dropdown
+  - Afronding dropdown (`Alle voortgang`, `Afgerond`, `Niet afgerond`)
 - Map marker colors are based on `Materieel`:
   - `Mobiel`: blue
   - `Kraan`: orange
@@ -143,6 +140,7 @@
 - Keep commits focused and update this changelog before pushing project changes.
 
 ## Changelog
+- 2026-04-20: Simplified top filter bar to only two filters: `Materieel` and `Afronding` (revision completion state). Removed search, bestuur, plaats, and the old status filter from the UI and filtering logic. Verified with `npm run lint` and `npm run build`.
 - 2026-04-20: Updated Google Maps route links to use row coordinates (`location.lat`, `location.lng`) instead of address text when available, so navigation matches marker positions after manual marker moves. Address-based destination remains as fallback for rows without coordinates. Verified with `npm run lint` and `npm run build`.
 - 2026-04-20: Added admin school management actions. Admin users can now add new schools (`School toevoegen`) and remove existing schools (`School verwijderen`) directly from the dashboard UI. New and deleted rows are saved immediately through `/api/rows` with local fallback on save failure. Verified with `npm run lint` and `npm run build`.
 - 2026-04-20: Added admin marker relocation flow. The edit overlay now includes `Bolletje verplaatsen`; starting relocation closes the overlay and enables dragging the selected map marker. On drop, coordinates are updated automatically and persisted immediately via `/api/rows` with local fallback on failure, while address fields remain unchanged for manual admin updates. Verified with `npm run lint` and `npm run build`.
