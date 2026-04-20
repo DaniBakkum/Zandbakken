@@ -92,6 +92,10 @@
   - Materieel
   - Latitude
   - Longitude
+- Admin can start marker relocation from the edit overlay via `Bolletje verplaatsen`.
+- During relocation, the edit overlay closes and the selected marker becomes draggable on the map.
+- On drag end, latitude/longitude are updated and saved immediately through the existing `/api/rows` persistence flow.
+- Address fields (`Straatnaam`, `Plaats`) are not auto-updated when a marker is moved; admin must edit them manually if needed.
 - Materieel in the edit card is a dropdown.
 - `Esc` closes the edit card.
 - Clicking the overlay outside the edit card closes it.
@@ -135,6 +139,7 @@
 - Keep commits focused and update this changelog before pushing project changes.
 
 ## Changelog
+- 2026-04-20: Added admin marker relocation flow. The edit overlay now includes `Bolletje verplaatsen`; starting relocation closes the overlay and enables dragging the selected map marker. On drop, coordinates are updated automatically and persisted immediately via `/api/rows` with local fallback on failure, while address fields remain unchanged for manual admin updates. Verified with `npm run lint` and `npm run build`.
 - 2026-04-20: Added revision workflow for completed sandpit work in `src/App.jsx` and `src/App.css`. Users can now save `Zandbak afronden` details (`m3 uit`, `m3 in`, uitgevoerd materieel, optional opmerkingen), view these values in the marker popup, reopen completed items, and see a check badge on completed map markers. Revision data is stored per row in a `revision` object and persisted via existing `/api/rows` storage flow with local fallback. Verified with `npm run lint` and `npm run build`.
 - 2026-04-20: Added password-gated admin edit mode via the top-right `Bron` pill in `src/App.jsx`. Editing is now hidden/blocked for regular users (popup button, mobile card button, and marker right-click), and only becomes available after entering admin password `Sturm1505!`; clicking the pill again logs out admin and closes active edit state. Added auth modal and source-pill/admin visual styles in `src/App.css`. Verified with `npm run lint` and `npm run build`.
 - 2026-04-18: Added `AGENTS.md` as project handoff documentation. Documented project structure, CSV/data rules, UX behavior, right-click edit flow, localStorage behavior, corrected addresses, dependencies, run commands, and future-agent cautions. Verified app was running at `http://127.0.0.1:5173` with HTTP `200 OK`.

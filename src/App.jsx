@@ -387,8 +387,10 @@ function App() {
   const [isPanelOpen, setIsPanelOpen] = useState(false)
   const [editDraft, setEditDraft] = useState(null)
   const [revisionDraft, setRevisionDraft] = useState(null)
+  const [dragTargetId, setDragTargetId] = useState(null)
   const [isEquipmentMenuOpen, setIsEquipmentMenuOpen] = useState(false)
   const [saveError, setSaveError] = useState('')
+  const [dragError, setDragError] = useState('')
   const [isSaving, setIsSaving] = useState(false)
   const [revisionSaveError, setRevisionSaveError] = useState('')
   const [isRevisionSaving, setIsRevisionSaving] = useState(false)
@@ -440,6 +442,7 @@ function App() {
       if (event.key === 'Escape') {
         setEditDraft(null)
         setRevisionDraft(null)
+        setDragTargetId(null)
         setRevisionSaveError('')
         setIsAuthModalOpen(false)
         setAdminPasswordInput('')
@@ -551,6 +554,7 @@ function App() {
     if (isAdmin) {
       setIsAdmin(false)
       setEditDraft(null)
+      setDragTargetId(null)
       return
     }
 
@@ -612,6 +616,18 @@ function App() {
 
   function updateRevisionDraft(name, value) {
     setRevisionDraft((current) => ({ ...current, [name]: value }))
+  }
+
+  function startMarkerRelocation() {
+    if (!isAdmin || !editDraft) {
+      return
+    }
+
+    setSelectedId(editDraft.id)
+    setSaveError('')
+    setDragError('')
+    setEditDraft(null)
+    setDragTargetId(editDraft.id)
   }
 
   async function persistRows(nextRows, onServerSaveFailed) {
@@ -693,6 +709,31 @@ function App() {
 
     setRevisionSaveError('')
     await persistRows(nextRows)
+    setSelectedId(row.id)
+  }
+
+  async function handleMarkerDragEnd(row, event) {
+    const latlng = event.target.getLatLng?.()
+    if (!latlng) {
+      return
+    }
+
+    const nextRow = {
+      ...row,
+      location: {
+        ...(row.location ?? {}),
+        lat: latlng.lat,
+        lng: latlng.lng,
+        source: row.location?.source ?? `${row.street}, ${row.city}`,
+      },
+    }
+    const nextRows = rows.map((item) => (item.id === row.id ? nextRow : item))
+
+    setDragError('')
+    await persistRows(nextRows, () => {
+      setDragError('Serveropslag is niet gelukt; nieuwe locatie is alleen in deze browser bewaard.')
+    })
+    setDragTargetId(null)
     setSelectedId(row.id)
   }
 
@@ -875,7 +916,21 @@ function App() {
                 >
                   {locationState === 'loading' ? 'Locatie zoeken...' : 'Mijn locatie'}
                 </button>
+                {isAdmin && dragTargetId && (
+                  <button
+                    type="button"
+                    className="location-button"
+                    onClick={() => setDragTargetId(null)}
+                    title="Stop marker verplaatsen"
+                  >
+                    Verplaatsen stoppen
+                  </button>
+                )}
                 {locationError && <span className="location-error">{locationError}</span>}
+                {isAdmin && dragTargetId && !locationError && (
+                  <span className="location-error">Sleep het bolletje naar de juiste plek en laat los.</span>
+                )}
+                {dragError && <span className="location-error">{dragError}</span>}
               </div>
               {loadState === 'loading' ? (
                 <div className="state-message compact">CSV laden...</div>
@@ -914,8 +969,10 @@ function App() {
                         key={row.id}
                         position={[row.location.lat, row.location.lng]}
                         icon={rowMarkerIcon(row, row.id === selectedRow?.id)}
+                        draggable={isAdmin && dragTargetId === row.id}
                         eventHandlers={{
                           click: () => setSelectedId(row.id),
+                          dragend: (event) => handleMarkerDragEnd(row, event),
                           contextmenu: (event) => {
                             event.originalEvent.preventDefault()
                             if (!isAdmin) {
@@ -1230,6 +1287,11 @@ function App() {
 
                 <div className="edit-actions">
                   {saveError && <p className="save-error">{saveError}</p>}
+                  {isAdmin && (
+                    <button type="button" className="secondary-button" onClick={startMarkerRelocation}>
+                      Bolletje verplaatsen
+                    </button>
+                  )}
                   <button type="button" className="secondary-button" onClick={() => setEditDraft(null)}>
                     Annuleren
                   </button>
