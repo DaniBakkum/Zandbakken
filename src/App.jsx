@@ -99,6 +99,12 @@ function equipmentColor(equipment) {
 }
 
 function googleMapsRouteUrl(row) {
+  if (row.location?.lat != null && row.location?.lng != null) {
+    return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(
+      `${row.location.lat},${row.location.lng}`,
+    )}`
+  }
+
   return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(
     `${row.street}, ${row.city}, Nederland`,
   )}`
@@ -194,6 +200,20 @@ function rowToDraft(row) {
   }
 }
 
+function createSchoolDraft() {
+  return {
+    school: '',
+    board: '',
+    street: '',
+    city: '',
+    outgoingRaw: '',
+    incomingRaw: '',
+    equipment: 'Onbekend',
+    lat: '',
+    lng: '',
+  }
+}
+
 function draftToRow(currentRow, draft) {
   const lat = parseCoordinate(draft.lat)
   const lng = parseCoordinate(draft.lng)
@@ -215,6 +235,36 @@ function draftToRow(currentRow, draft) {
     incomingRaw: cleanValue(draft.incomingRaw),
     equipment: cleanValue(draft.equipment) || '?',
     location,
+  }
+
+  row.outgoing = parseDutchNumber(row.outgoingRaw)
+  row.incoming = parseDutchNumber(row.incomingRaw)
+  row.needsCheck = !row.location
+
+  return row
+}
+
+function createRowFromDraft(draft) {
+  const lat = parseCoordinate(draft.lat)
+  const lng = parseCoordinate(draft.lng)
+  const row = {
+    id: `custom-${Date.now()}-${Math.floor(Math.random() * 100000)}`,
+    school: cleanValue(draft.school),
+    board: cleanValue(draft.board),
+    street: cleanValue(draft.street),
+    city: cleanValue(draft.city),
+    outgoingRaw: cleanValue(draft.outgoingRaw),
+    incomingRaw: cleanValue(draft.incomingRaw),
+    equipment: cleanValue(draft.equipment) || '?',
+    location:
+      lat === null || lng === null
+        ? null
+        : {
+            lat,
+            lng,
+            source: `${cleanValue(draft.street)}, ${cleanValue(draft.city)}`,
+          },
+    revision: normalizeRevision(null),
   }
 
   row.outgoing = parseDutchNumber(row.outgoingRaw)
@@ -387,12 +437,15 @@ function App() {
   const [isPanelOpen, setIsPanelOpen] = useState(false)
   const [editDraft, setEditDraft] = useState(null)
   const [revisionDraft, setRevisionDraft] = useState(null)
+  const [createDraft, setCreateDraft] = useState(null)
   const [dragTargetId, setDragTargetId] = useState(null)
   const [isEquipmentMenuOpen, setIsEquipmentMenuOpen] = useState(false)
   const [saveError, setSaveError] = useState('')
   const [dragError, setDragError] = useState('')
   const [isSaving, setIsSaving] = useState(false)
+  const [createSaveError, setCreateSaveError] = useState('')
   const [revisionSaveError, setRevisionSaveError] = useState('')
+  const [isCreateSaving, setIsCreateSaving] = useState(false)
   const [isRevisionSaving, setIsRevisionSaving] = useState(false)
   const [mobileView, setMobileView] = useState('map')
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false)
@@ -434,7 +487,7 @@ function App() {
   }, [])
 
   useEffect(() => {
-    if (!editDraft && !revisionDraft && !isAuthModalOpen) {
+    if (!editDraft && !revisionDraft && !createDraft && !isAuthModalOpen) {
       return undefined
     }
 
@@ -442,7 +495,9 @@ function App() {
       if (event.key === 'Escape') {
         setEditDraft(null)
         setRevisionDraft(null)
+        setCreateDraft(null)
         setDragTargetId(null)
+        setCreateSaveError('')
         setRevisionSaveError('')
         setIsAuthModalOpen(false)
         setAdminPasswordInput('')
@@ -452,7 +507,7 @@ function App() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [editDraft, revisionDraft, isAuthModalOpen])
+  }, [editDraft, revisionDraft, createDraft, isAuthModalOpen])
 
   const boardOptions = useMemo(() => getOptionValues(rows, 'board'), [rows])
   const cityOptions = useMemo(() => getOptionValues(rows, 'city'), [rows])
@@ -530,6 +585,18 @@ function App() {
     setEditDraft(rowToDraft(row))
   }
 
+  function openCreateSchool() {
+    if (!isAdmin) {
+      return
+    }
+
+    setRevisionDraft(null)
+    setEditDraft(null)
+    setDragTargetId(null)
+    setCreateSaveError('')
+    setCreateDraft(createSchoolDraft())
+  }
+
   function openRevision(row) {
     setSelectedId(row.id)
     setSaveError('')
@@ -554,6 +621,7 @@ function App() {
     if (isAdmin) {
       setIsAdmin(false)
       setEditDraft(null)
+      setCreateDraft(null)
       setDragTargetId(null)
       return
     }
@@ -616,6 +684,10 @@ function App() {
 
   function updateRevisionDraft(name, value) {
     setRevisionDraft((current) => ({ ...current, [name]: value }))
+  }
+
+  function updateCreateDraft(name, value) {
+    setCreateDraft((current) => ({ ...current, [name]: value }))
   }
 
   function startMarkerRelocation() {
@@ -694,6 +766,44 @@ function App() {
     if (!serverSaveFailed) {
       setRevisionDraft(null)
     }
+  }
+
+  async function saveCreateDraft(event) {
+    event.preventDefault()
+    const nextRow = createRowFromDraft(createDraft)
+    const nextRows = [...rows, nextRow]
+
+    setIsCreateSaving(true)
+    setCreateSaveError('')
+    const serverSaveFailed = await persistRows(nextRows, () => {
+      setCreateSaveError('Serveropslag is niet gelukt; deze nieuwe school is alleen in deze browser bewaard.')
+    })
+
+    setSelectedId(nextRow.id)
+    setIsCreateSaving(false)
+
+    if (!serverSaveFailed) {
+      setCreateDraft(null)
+    }
+  }
+
+  async function deleteSchool() {
+    if (!isAdmin || !editDraft) {
+      return
+    }
+
+    const nextRows = rows.filter((row) => row.id !== editDraft.id)
+    setSaveError('')
+    const serverSaveFailed = await persistRows(nextRows, () => {
+      setSaveError('Serveropslag is niet gelukt; verwijderen is alleen in deze browser bewaard.')
+    })
+
+    if (!serverSaveFailed) {
+      setEditDraft(null)
+    }
+
+    setSelectedId(nextRows[0]?.id ?? null)
+    setDragTargetId(null)
   }
 
   async function reopenRevision(row) {
@@ -1049,6 +1159,15 @@ function App() {
               <div className="table-toolbar">
                 <h2>Locaties</h2>
                 <div className="toolbar-actions">
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      className="secondary-button compact"
+                      onClick={openCreateSchool}
+                    >
+                      School toevoegen
+                    </button>
+                  )}
                   <span>
                     {sortedRows.length} van {rows.length}
                   </span>
@@ -1143,9 +1262,20 @@ function App() {
             <section className="mobile-list-panel" aria-label="Mobiele locatielijst">
               <div className="mobile-list-header">
                 <h2>Locaties</h2>
-                <span>
-                  {sortedRows.length} van {rows.length}
-                </span>
+                <div className="mobile-header-actions">
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      className="secondary-button compact"
+                      onClick={openCreateSchool}
+                    >
+                      School toevoegen
+                    </button>
+                  )}
+                  <span>
+                    {sortedRows.length} van {rows.length}
+                  </span>
+                </div>
               </div>
 
               <div className="mobile-card-list">
@@ -1292,6 +1422,11 @@ function App() {
                       Bolletje verplaatsen
                     </button>
                   )}
+                  {isAdmin && (
+                    <button type="button" className="popup-reopen-button" onClick={deleteSchool}>
+                      School verwijderen
+                    </button>
+                  )}
                   <button type="button" className="secondary-button" onClick={() => setEditDraft(null)}>
                     Annuleren
                   </button>
@@ -1388,6 +1523,109 @@ function App() {
                   </button>
                   <button type="submit" className="primary-button" disabled={isRevisionSaving}>
                     {isRevisionSaving ? 'Opslaan...' : 'Afronden opslaan'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {createDraft && (
+            <div
+              className="edit-overlay"
+              role="presentation"
+              onClick={() => {
+                setCreateDraft(null)
+                setCreateSaveError('')
+              }}
+            >
+              <form className="edit-panel" onSubmit={saveCreateDraft} onClick={(event) => event.stopPropagation()}>
+                <div className="edit-header">
+                  <div>
+                    <p className="eyebrow">Admin beheer</p>
+                    <h2>Nieuwe school toevoegen</h2>
+                  </div>
+                  <button
+                    type="button"
+                    className="icon-button"
+                    onClick={() => {
+                      setCreateDraft(null)
+                      setCreateSaveError('')
+                    }}
+                    aria-label="Toevoegen sluiten"
+                    title="Toevoegen sluiten"
+                  >
+                    &times;
+                  </button>
+                </div>
+
+                <div className="edit-grid">
+                  <label className="field">
+                    <span>School</span>
+                    <input value={createDraft.school} onChange={(event) => updateCreateDraft('school', event.target.value)} />
+                  </label>
+                  <label className="field">
+                    <span>Bestuur</span>
+                    <input value={createDraft.board} onChange={(event) => updateCreateDraft('board', event.target.value)} />
+                  </label>
+                  <label className="field wide">
+                    <span>Straatnaam</span>
+                    <input value={createDraft.street} onChange={(event) => updateCreateDraft('street', event.target.value)} />
+                  </label>
+                  <label className="field">
+                    <span>Plaats</span>
+                    <input value={createDraft.city} onChange={(event) => updateCreateDraft('city', event.target.value)} />
+                  </label>
+                  <label className="field">
+                    <span>m3 uit</span>
+                    <input
+                      value={createDraft.outgoingRaw}
+                      onChange={(event) => updateCreateDraft('outgoingRaw', event.target.value)}
+                    />
+                  </label>
+                  <label className="field">
+                    <span>m3 in</span>
+                    <input
+                      value={createDraft.incomingRaw}
+                      onChange={(event) => updateCreateDraft('incomingRaw', event.target.value)}
+                    />
+                  </label>
+                  <label className="field">
+                    <span>Materieel</span>
+                    <select
+                      value={createDraft.equipment}
+                      onChange={(event) => updateCreateDraft('equipment', event.target.value)}
+                    >
+                      {Object.keys(EQUIPMENT_COLORS).map((equipment) => (
+                        <option key={equipment} value={equipment}>
+                          {equipment}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="field">
+                    <span>Latitude</span>
+                    <input value={createDraft.lat} onChange={(event) => updateCreateDraft('lat', event.target.value)} />
+                  </label>
+                  <label className="field">
+                    <span>Longitude</span>
+                    <input value={createDraft.lng} onChange={(event) => updateCreateDraft('lng', event.target.value)} />
+                  </label>
+                </div>
+
+                <div className="edit-actions">
+                  {createSaveError && <p className="save-error">{createSaveError}</p>}
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() => {
+                      setCreateDraft(null)
+                      setCreateSaveError('')
+                    }}
+                  >
+                    Annuleren
+                  </button>
+                  <button type="submit" className="primary-button" disabled={isCreateSaving}>
+                    {isCreateSaving ? 'Opslaan...' : 'School toevoegen'}
                   </button>
                 </div>
               </form>

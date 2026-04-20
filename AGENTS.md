@@ -68,6 +68,7 @@
 - Completed revisions show a green check badge on the map marker.
 - There is no map legend by user request.
 - Every popup and table row has a Google Maps route link.
+- Route links use marker coordinates (`lat,lng`) when available so navigation matches the map marker position; address is only a fallback.
 - Route link text must stay white in normal, visited, hover, and active states.
 - Map includes a `Mijn locatie` control that uses browser geolocation, centers the map on the user, and displays a blue user-location marker with accuracy in meters.
 - Popup and mobile cards include revision actions:
@@ -82,6 +83,9 @@
 - Clicking the `Bron` pill again logs out admin and immediately disables all edit entry points.
 - Revision flow is available to all users (not admin-only) and opens via popup/location-card actions.
 - Revision saves are sent directly to `/api/rows` and use localStorage fallback when server persistence fails.
+- Admin can add schools via `School toevoegen` in the locations panel (desktop and mobile list header).
+- Admin can remove schools via `School verwijderen` in the edit overlay.
+- Added/removed schools are persisted immediately via `/api/rows` with the same localStorage fallback on server failure.
 - Editable fields:
   - School
   - Bestuur
@@ -139,6 +143,8 @@
 - Keep commits focused and update this changelog before pushing project changes.
 
 ## Changelog
+- 2026-04-20: Updated Google Maps route links to use row coordinates (`location.lat`, `location.lng`) instead of address text when available, so navigation matches marker positions after manual marker moves. Address-based destination remains as fallback for rows without coordinates. Verified with `npm run lint` and `npm run build`.
+- 2026-04-20: Added admin school management actions. Admin users can now add new schools (`School toevoegen`) and remove existing schools (`School verwijderen`) directly from the dashboard UI. New and deleted rows are saved immediately through `/api/rows` with local fallback on save failure. Verified with `npm run lint` and `npm run build`.
 - 2026-04-20: Added admin marker relocation flow. The edit overlay now includes `Bolletje verplaatsen`; starting relocation closes the overlay and enables dragging the selected map marker. On drop, coordinates are updated automatically and persisted immediately via `/api/rows` with local fallback on failure, while address fields remain unchanged for manual admin updates. Verified with `npm run lint` and `npm run build`.
 - 2026-04-20: Added revision workflow for completed sandpit work in `src/App.jsx` and `src/App.css`. Users can now save `Zandbak afronden` details (`m3 uit`, `m3 in`, uitgevoerd materieel, optional opmerkingen), view these values in the marker popup, reopen completed items, and see a check badge on completed map markers. Revision data is stored per row in a `revision` object and persisted via existing `/api/rows` storage flow with local fallback. Verified with `npm run lint` and `npm run build`.
 - 2026-04-20: Added password-gated admin edit mode via the top-right `Bron` pill in `src/App.jsx`. Editing is now hidden/blocked for regular users (popup button, mobile card button, and marker right-click), and only becomes available after entering admin password `Sturm1505!`; clicking the pill again logs out admin and closes active edit state. Added auth modal and source-pill/admin visual styles in `src/App.css`. Verified with `npm run lint` and `npm run build`.

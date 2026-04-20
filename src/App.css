@@ -954,6 +954,12 @@ tbody tr.selected {
     font-weight: 800;
   }
 
+  .mobile-header-actions {
+    align-items: center;
+    display: flex;
+    gap: 8px;
+  }
+
   .mobile-card-list {
     display: grid;
     gap: 10px;
