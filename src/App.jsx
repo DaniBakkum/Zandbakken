@@ -912,7 +912,7 @@ function App() {
                     .map((row) => (
                       <Marker
                         key={row.id}
-                        center={[row.location.lat, row.location.lng]}
+                        position={[row.location.lat, row.location.lng]}
                         icon={rowMarkerIcon(row, row.id === selectedRow?.id)}
                         eventHandlers={{
                           click: () => setSelectedId(row.id),
