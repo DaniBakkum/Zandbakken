@@ -150,6 +150,7 @@
 - Keep commits focused and update this changelog before pushing project changes.
 
 ## Changelog
+- 2026-04-20: Fixed materieel multi-select behavior after `Alles verbergen`. Selecting one materieel from an empty selection now correctly shows only that selected option instead of all others. Verified with `npm run lint` and `npm run build`.
 - 2026-04-20: Relaxed revision photo compression fallback to prevent over-rejection. Compression now tries multiple resize rounds plus quality reduction and accepts a practical hard-limit fallback (while still preferring ~250 KB target), reducing cases where normal phone photos were always rejected as too large. Verified with `npm run lint` and `npm run build`.
 - 2026-04-20: Added revision photo support with client-side compression and server persistence. Users can add up to 3 photos in the revision modal, images are resized/compressed to WebP before save (target ~250 KB per photo), and photos can be replaced or removed. Stored photos now persist inside `revision.photos` and appear as thumbnails in completed popup summaries with a click-to-enlarge preview. Verified with `npm run lint` and `npm run build`.
 - 2026-04-20: Updated materieel filter toggle control behavior. The bottom action now shows `Alles verbergen` when all materieel options are selected and switches to `Alles tonen` when one or more options are off. Clicking the action now toggles between all-selected and none-selected states. Verified with `npm run lint` and `npm run build`.

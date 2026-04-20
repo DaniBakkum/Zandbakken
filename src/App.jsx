@@ -721,7 +721,7 @@ function App() {
 
   function toggleEquipmentFilter(value) {
     setFilters((current) => {
-      const selected = current.equipment.length === 0 ? [...equipmentOptions] : [...current.equipment]
+      const selected = [...current.equipment]
       const equipment = selected.includes(value)
         ? selected.filter((item) => item !== value)
         : [...selected, value]
