@@ -168,6 +168,7 @@
 - Keep commits focused and update this changelog before pushing project changes.
 
 ## Changelog
+- 2026-04-21: Added distance-aware planning overview behavior. When `Mijn locatie` is known, planning overview rows show the distance to each school and rows within each visible day are sorted by distance while day ordering stays date-based. Verified with `npm run lint` and `npm run build`.
 - 2026-04-21: Updated the read-only planning overview so completed/revised locations are struck through, days where every planned location is completed are hidden, and clicking a planning location closes the overview, switches to the map, selects the marker, and opens its popup with route/revision actions. Verified with `npm run lint` and `npm run build`.
 - 2026-04-21: Fixed planned marker/date label positioning. Date labels now render as Leaflet tooltips instead of being embedded inside the marker `divIcon`, so school marker anchors stay stable while zooming/panning on desktop and mobile. Verified with `npm run lint` and `npm run build`.
 - 2026-04-21: Split planning viewing from planning editing. Mobile `Planning` now opens a read-only day-grouped overview without password, desktop has `Bekijk planning` for a day-grouped overview with admin edit/remove actions, and map marker date labels can be toggled with `Toon datums`. Verified with `npm run lint` and `npm run build`.

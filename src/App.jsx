@@ -112,6 +112,52 @@ function formatDisplayDate(value) {
   return `${day}-${month}-${year}`
 }
 
+function calculateDistanceMeters(origin, destination) {
+  if (!origin || !destination) {
+    return null
+  }
+
+  const originLat = Number(origin.lat)
+  const originLng = Number(origin.lng)
+  const destinationLat = Number(destination.lat)
+  const destinationLng = Number(destination.lng)
+
+  if (
+    !Number.isFinite(originLat) ||
+    !Number.isFinite(originLng) ||
+    !Number.isFinite(destinationLat) ||
+    !Number.isFinite(destinationLng)
+  ) {
+    return null
+  }
+
+  const toRadians = (value) => (value * Math.PI) / 180
+  const earthRadiusMeters = 6371000
+  const deltaLat = toRadians(destinationLat - originLat)
+  const deltaLng = toRadians(destinationLng - originLng)
+  const startLat = toRadians(originLat)
+  const endLat = toRadians(destinationLat)
+  const haversine =
+    Math.sin(deltaLat / 2) ** 2 +
+    Math.cos(startLat) * Math.cos(endLat) * Math.sin(deltaLng / 2) ** 2
+
+  return earthRadiusMeters * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine))
+}
+
+function formatDistance(distanceMeters) {
+  if (!Number.isFinite(distanceMeters)) {
+    return 'Afstand onbekend'
+  }
+
+  if (distanceMeters < 1000) {
+    return `${Math.round(distanceMeters)} m`
+  }
+
+  return `${(distanceMeters / 1000).toLocaleString('nl-NL', {
+    maximumFractionDigits: distanceMeters < 10000 ? 1 : 0,
+  })} km`
+}
+
 function makePlanningId(date, rowKey) {
   return `planning-${date}-${rowKey}`
 }
@@ -799,21 +845,44 @@ function createPlanningExportRows(planning, rows, boardFilter) {
     }))
 }
 
-function createPlanningOverviewGroups(planning, rows) {
+function comparePlanningOverviewEntries(left, right, hasUserLocation) {
+  const dateSort = left.item.date.localeCompare(right.item.date, 'nl')
+
+  if (dateSort !== 0) {
+    return dateSort
+  }
+
+  if (hasUserLocation) {
+    const leftDistance = Number.isFinite(left.distanceMeters) ? left.distanceMeters : Number.POSITIVE_INFINITY
+    const rightDistance = Number.isFinite(right.distanceMeters) ? right.distanceMeters : Number.POSITIVE_INFINITY
+    const distanceSort = leftDistance - rightDistance
+
+    if (distanceSort !== 0) {
+      return distanceSort
+    }
+  }
+
+  return left.row.school.localeCompare(right.row.school, 'nl')
+}
+
+function createPlanningOverviewGroups(planning, rows, userLocation) {
   const rowsByKey = new Map(rows.map((row) => [row.rowKey, row]))
   const groups = new Map()
+  const hasUserLocation = Boolean(userLocation)
 
   normalizePlanning(planning)
     .map((item) => {
       const row = rowsByKey.get(item.rowKey)
-      return row ? { item, row } : null
+      return row
+        ? {
+            item,
+            row,
+            distanceMeters: calculateDistanceMeters(userLocation, row.location),
+          }
+        : null
     })
     .filter(Boolean)
-    .sort(
-      (left, right) =>
-        left.item.date.localeCompare(right.item.date, 'nl') ||
-        left.row.school.localeCompare(right.row.school, 'nl'),
-    )
+    .sort((left, right) => comparePlanningOverviewEntries(left, right, hasUserLocation))
     .forEach((entry) => {
       const group = groups.get(entry.item.date) ?? []
       group.push(entry)
@@ -1101,8 +1170,8 @@ function App() {
     [planning],
   )
   const planningOverviewGroups = useMemo(
-    () => createPlanningOverviewGroups(planning, rows),
-    [planning, rows],
+    () => createPlanningOverviewGroups(planning, rows, userLocation),
+    [planning, rows, userLocation],
   )
   const planningOverviewEditItem = useMemo(
     () => planning.find((item) => item.id === planningOverviewEditDraft?.id) ?? null,
@@ -2686,7 +2755,7 @@ function App() {
                       <article key={group.date} className="planning-day-group">
                         <h3>{formatDisplayDate(group.date)}</h3>
                         <div className="planning-overview-list">
-                          {group.items.map(({ item, row }) => (
+                          {group.items.map(({ item, row, distanceMeters }) => (
                             <article
                               key={item.id}
                               className={`planning-overview-row clickable ${
@@ -2700,6 +2769,7 @@ function App() {
                                   {row.city || 'Plaats onbekend'} | {equipmentLabel(row.equipment)}
                                 </span>
                                 <span>{[row.street, row.city].map(cleanValue).filter(Boolean).join(', ')}</span>
+                                {userLocation && <span>Afstand: {formatDistance(distanceMeters)}</span>}
                               </div>
                               {!isMobile && (
                                 <button
