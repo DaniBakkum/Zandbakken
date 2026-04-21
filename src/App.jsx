@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { divIcon } from 'leaflet'
 import { MapContainer, Marker, Popup, TileLayer, Tooltip, useMap } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -820,7 +820,9 @@ function createPlanningOverviewGroups(planning, rows) {
       groups.set(entry.item.date, group)
     })
 
-  return [...groups.entries()].map(([date, items]) => ({ date, items }))
+  return [...groups.entries()]
+    .map(([date, items]) => ({ date, items }))
+    .filter((group) => group.items.some(({ row }) => !row.revision.completed))
 }
 
 async function downloadPlanningXlsx(exportRows) {
@@ -946,6 +948,8 @@ function App() {
   const [planningOverviewEditDraft, setPlanningOverviewEditDraft] = useState(null)
   const [pendingPlanningEditId, setPendingPlanningEditId] = useState(null)
   const [showPlanningDateLabels, setShowPlanningDateLabels] = useState(true)
+  const [popupTargetId, setPopupTargetId] = useState(null)
+  const markerRefs = useRef(new Map())
 
   useEffect(() => {
     async function loadRows() {
@@ -1121,6 +1125,26 @@ function App() {
     () => createPlanningExportRows(planning, rows, planningExportFilter),
     [planning, planningExportFilter, rows],
   )
+
+  useEffect(() => {
+    if (!popupTargetId || isPlanningMapSelectMode || isPlanningOverviewOpen) {
+      return undefined
+    }
+
+    const targetRow = sortedRows.find((row) => row.id === popupTargetId)
+    const marker = markerRefs.current.get(popupTargetId)
+
+    if (!targetRow || !marker) {
+      return undefined
+    }
+
+    const timerId = window.setTimeout(() => {
+      marker.openPopup()
+      setPopupTargetId(null)
+    }, 350)
+
+    return () => window.clearTimeout(timerId)
+  }, [isPlanningMapSelectMode, isPlanningOverviewOpen, popupTargetId, sortedRows])
 
   function updateFilter(name, value) {
     setFilters((current) => ({ ...current, [name]: value }))
@@ -1321,6 +1345,37 @@ function App() {
       date: item.date,
     })
     setPlanningSaveError('')
+  }
+
+  function ensureRowVisible(row) {
+    setFilters((current) => {
+      const rowEquipment = equipmentLabel(row.equipment)
+      const equipment = current.equipment.includes(rowEquipment)
+        ? current.equipment
+        : [...current.equipment, rowEquipment]
+      const completionMatches =
+        current.completion === 'all' ||
+        (current.completion === 'done' && row.revision.completed) ||
+        (current.completion === 'open' && !row.revision.completed)
+      const completion = completionMatches ? current.completion : 'all'
+
+      if (equipment === current.equipment && completion === current.completion) {
+        return current
+      }
+
+      return { ...current, equipment, completion }
+    })
+  }
+
+  function openPlanningOverviewLocation(row) {
+    ensureRowVisible(row)
+    setSelectedId(row.id)
+    setPopupTargetId(row.location ? row.id : null)
+    setIsPlanningOverviewOpen(false)
+    setPlanningOverviewEditDraft(null)
+    setPlanningSaveError('')
+    setIsPanelOpen(false)
+    setMobileView('map')
   }
 
   function startPlanning(event) {
@@ -2031,6 +2086,14 @@ function App() {
                       return (
                         <Marker
                           key={row.id}
+                          ref={(marker) => {
+                            if (marker) {
+                              markerRefs.current.set(row.id, marker)
+                              return
+                            }
+
+                            markerRefs.current.delete(row.id)
+                          }}
                           position={[row.location.lat, row.location.lng]}
                           icon={rowMarkerIcon(
                             row,
@@ -2613,7 +2676,9 @@ function App() {
 
                 {planningOverviewGroups.length === 0 ? (
                   <div className="state-message compact planning-empty-state">
-                    Er staan nog geen scholen op de planning.
+                    {planning.length === 0
+                      ? 'Er staan nog geen scholen op de planning.'
+                      : 'Alle geplande scholen zijn afgerond.'}
                   </div>
                 ) : (
                   <div className="planning-overview-days">
@@ -2624,8 +2689,10 @@ function App() {
                           {group.items.map(({ item, row }) => (
                             <article
                               key={item.id}
-                              className={`planning-overview-row ${!isMobile ? 'editable' : ''}`}
-                              onClick={!isMobile ? () => openPlanningOverviewEditById(item.id) : undefined}
+                              className={`planning-overview-row clickable ${
+                                row.revision.completed ? 'completed' : ''
+                              }`}
+                              onClick={() => openPlanningOverviewLocation(row)}
                             >
                               <div className="planning-overview-main">
                                 <strong>{row.school}</strong>

@@ -1097,12 +1097,22 @@ tbody tr.selected {
   border-bottom: 0;
 }
 
-.planning-overview-row.editable {
+.planning-overview-row.clickable {
   cursor: pointer;
 }
 
-.planning-overview-row.editable:hover {
+.planning-overview-row.clickable:hover {
   background: #ecfeff;
+}
+
+.planning-overview-row.completed .planning-overview-main {
+  text-decoration: line-through;
+  text-decoration-thickness: 2px;
+}
+
+.planning-overview-row.completed .planning-overview-main strong,
+.planning-overview-row.completed .planning-overview-main span {
+  color: #94a3b8;
 }
 
 .planning-overview-main {
