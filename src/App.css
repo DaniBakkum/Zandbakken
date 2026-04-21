@@ -384,7 +384,6 @@ button:focus-visible {
 .school-marker-icon {
   background: transparent;
   border: 0;
-  position: relative;
 }
 
 .school-marker-core {
@@ -438,21 +437,21 @@ button:focus-visible {
   opacity: 0.35;
 }
 
-.school-marker-date-label {
+.school-marker-date-tooltip {
   background: #ffffff;
   border: 1px solid #cbd5e1;
   border-radius: 999px;
   box-shadow: 0 4px 12px rgba(15, 23, 42, 0.22);
   color: #0f172a;
-  display: inline-flex;
   font-size: 10px;
   font-weight: 900;
-  left: 28px;
   line-height: 1;
   padding: 4px 6px;
-  position: absolute;
-  top: 6px;
   white-space: nowrap;
+}
+
+.school-marker-date-tooltip::before {
+  display: none;
 }
 
 .leaflet-popup-content {

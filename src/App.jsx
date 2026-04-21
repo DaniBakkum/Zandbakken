@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { divIcon } from 'leaflet'
-import { MapContainer, Marker, Popup, TileLayer, useMap } from 'react-leaflet'
+import { MapContainer, Marker, Popup, TileLayer, Tooltip, useMap } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
 import './App.css'
 import { locationsByKey } from './data/locations'
@@ -631,15 +631,12 @@ function revisionDraftToRow(currentRow, draft) {
   }
 }
 
-function rowMarkerIcon(row, isSelected, planningState = 'available', planningDateLabel = '') {
+function rowMarkerIcon(row, isSelected, planningState = 'available') {
   const color = equipmentColor(row.equipment)
   const selectedClass = isSelected ? 'selected' : ''
   const completeClass = row.revision.completed ? 'completed' : ''
   const planningClass = planningState === 'available' ? '' : `planning-${planningState}`
-  const labelHtml = planningDateLabel
-    ? `<span class="school-marker-date-label">${planningDateLabel}</span>`
-    : ''
-  const html = `<span class="school-marker-core ${selectedClass} ${completeClass} ${planningClass}" style="--marker-fill:${color.fill};--marker-stroke:${color.stroke};"></span>${labelHtml}`
+  const html = `<span class="school-marker-core ${selectedClass} ${completeClass} ${planningClass}" style="--marker-fill:${color.fill};--marker-stroke:${color.stroke};"></span>`
 
   return divIcon({
     className: 'school-marker-icon',
@@ -2031,9 +2028,6 @@ function App() {
                     .filter((row) => row.location)
                     .map((row) => {
                       const plannedDate = planningByRowKey.get(row.rowKey)?.date
-                      const planningDateLabel =
-                        showPlanningDateLabels && plannedDate ? formatDisplayDate(plannedDate) : ''
-
                       return (
                         <Marker
                           key={row.id}
@@ -2042,7 +2036,6 @@ function App() {
                             row,
                             row.id === selectedRow?.id,
                             planningMarkerState(row),
-                            planningDateLabel,
                           )}
                           draggable={!isPlanningMapSelectMode && isAdmin && dragTargetId === row.id}
                           eventHandlers={{
@@ -2064,6 +2057,17 @@ function App() {
                             },
                           }}
                         >
+                        {showPlanningDateLabels && plannedDate && (
+                          <Tooltip
+                            permanent
+                            direction="right"
+                            offset={[12, 0]}
+                            opacity={1}
+                            className="school-marker-date-tooltip"
+                          >
+                            {formatDisplayDate(plannedDate)}
+                          </Tooltip>
+                        )}
                         {!isPlanningMapSelectMode && (
                         <Popup>
                           <strong>{row.school}</strong>
