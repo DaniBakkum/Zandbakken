@@ -111,7 +111,7 @@ function normalizePlanning(planning) {
   }
 
   let changed = false
-  const seen = new Set()
+  const seenRowKeys = new Set()
   const normalizedPlanning = planning
     .map((item) => {
       const date = cleanValue(item?.date)
@@ -125,14 +125,12 @@ function normalizePlanning(planning) {
       const id = cleanValue(item?.id) || `planning-${date}-${rowKey}`
       const createdAt = item?.createdAt ? String(item.createdAt) : new Date().toISOString()
       const updatedAt = item?.updatedAt ? String(item.updatedAt) : createdAt
-      const duplicateKey = `${date}|${rowKey}`
-
-      if (seen.has(duplicateKey)) {
+      if (seenRowKeys.has(rowKey)) {
         changed = true
         return null
       }
 
-      seen.add(duplicateKey)
+      seenRowKeys.add(rowKey)
       if (
         id !== cleanValue(item?.id) ||
         createdAt !== item?.createdAt ||

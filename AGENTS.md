@@ -89,7 +89,9 @@
 - Revisiekaart supports adding up to 3 photos per location, client-compressed to WebP before save, with replace/remove support.
 - Completed popup summary can show photo thumbnails that open in a larger preview overlay.
 - Admin users can open `Planning` from the header, choose a start date, walk through days, and toggle schools onto each day with round selection buttons.
-- Planning selections are independent from revision completion and can include the same school on multiple dates.
+- Planning selections are independent from revision completion; a school can appear only once in the total planning.
+- The planning modal includes `Selecteer op kaart`; during map selection, clicked school markers toggle the active day's planning, selected/previously planned markers fade, and `Terug naar planning` returns to the modal with selections intact.
+- Planning dates are stored internally as `YYYY-MM-DD`, but shown in the UI and export as `dd-mm-yyyy`.
 - Planning export creates a real `.xlsx` file with one row per planned school/date and can filter for Agora, Zaanprimair, or both.
 
 ## Editing Behavior
@@ -157,12 +159,13 @@
 - Keep CSV replaceable and semicolon-delimited.
 - If editing route links, preserve white text in Leaflet popups.
 - If editing persistence, keep `/api/rows` compatible with the serialized row shape from `serializeRows()`.
-- If editing planning, keep planning records separate from `revision` and refer to schools by stable `rowKey`.
+- If editing planning, keep planning records separate from `revision`, refer to schools by stable `rowKey`, and keep each school unique across the total planning.
 - For Vercel deployment with central edit persistence, connect Upstash Redis. The current Vercel integration may expose `KV_REST_API_URL` and `KV_REST_API_TOKEN`; these are supported.
 - If changing map/table behavior, run both `npm run lint` and `npm run build`.
 - Keep commits focused and update this changelog before pushing project changes.
 
 ## Changelog
+- 2026-04-21: Added planning map-selection mode and made planning unique per school. Admin users can now use `Selecteer op kaart` from the planning modal, select multiple markers for the active day, and return with the modal selections intact; selected/planned markers fade during the workflow, schools planned on another day are disabled/gray/struck through in the modal, and visible/exported planning dates now use `dd-mm-yyyy` while storage remains `YYYY-MM-DD`. Verified with `npm run lint` and `npm run build`.
 - 2026-04-21: Added admin-only daily planning with server persistence and Excel export. Rows now carry stable `rowKey` values, `/api/rows` supports backward-compatible optional `planning` payloads, dev saves planning to `data/planning-data.json`, production stores planning under a separate Redis key, and the Planning modal supports start date, previous/next day selection, school toggles, and `.xlsx` export filtered by Agora/Zaanprimair/all. Verified with `npm run lint` and `npm run build`.
 - 2026-04-20: Relaxed revision photo compression thresholds to reduce upload rejections. Compression now tries more aggressive resize/quality rounds (`PHOTO_MIN_DIMENSION` lowered, `PHOTO_QUALITY_MIN` lowered, smaller quality steps) and accepts a larger fallback hard limit (target now ~300 KB, hard cap 900 KB), so normal phone photos fail less often while still being compressed to WebP. Verified with `npm run lint` and `npm run build`.
 - 2026-04-20: Updated map marker visual distinction between schools and user location. Replaced the `Mijn locatie` marker with a custom blue crosshair icon and changed `mobiel/knijper` school marker color from blue to purple so school bolletjes are no longer blue. Verified with `npm run lint` and `npm run build`.

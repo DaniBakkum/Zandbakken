@@ -100,12 +100,16 @@ function formatPlanningDate(value) {
     return 'Geen datum gekozen'
   }
 
-  return new Date(`${value}T00:00:00`).toLocaleDateString('nl-NL', {
-    weekday: 'long',
-    day: '2-digit',
-    month: 'long',
-    year: 'numeric',
-  })
+  return formatDisplayDate(value)
+}
+
+function formatDisplayDate(value) {
+  if (!isValidDateValue(value)) {
+    return 'Onbekend'
+  }
+
+  const [year, month, day] = value.split('-')
+  return `${day}-${month}-${year}`
 }
 
 function makePlanningId(date, rowKey) {
@@ -117,7 +121,7 @@ function normalizePlanning(planning) {
     return []
   }
 
-  const seen = new Set()
+  const seenRowKeys = new Set()
 
   return planning
     .map((item) => {
@@ -128,12 +132,11 @@ function normalizePlanning(planning) {
         return null
       }
 
-      const duplicateKey = `${date}|${rowKey}`
-      if (seen.has(duplicateKey)) {
+      if (seenRowKeys.has(rowKey)) {
         return null
       }
 
-      seen.add(duplicateKey)
+      seenRowKeys.add(rowKey)
       const createdAt = item?.createdAt ? String(item.createdAt) : new Date().toISOString()
 
       return {
@@ -628,11 +631,12 @@ function revisionDraftToRow(currentRow, draft) {
   }
 }
 
-function rowMarkerIcon(row, isSelected) {
+function rowMarkerIcon(row, isSelected, planningState = 'available') {
   const color = equipmentColor(row.equipment)
   const selectedClass = isSelected ? 'selected' : ''
   const completeClass = row.revision.completed ? 'completed' : ''
-  const html = `<span class="school-marker-core ${selectedClass} ${completeClass}" style="--marker-fill:${color.fill};--marker-stroke:${color.stroke};"></span>`
+  const planningClass = planningState === 'available' ? '' : `planning-${planningState}`
+  const html = `<span class="school-marker-core ${selectedClass} ${completeClass} ${planningClass}" style="--marker-fill:${color.fill};--marker-stroke:${color.stroke};"></span>`
 
   return divIcon({
     className: 'school-marker-icon',
@@ -760,7 +764,7 @@ function exportRawValue(value) {
 
 function createPlanningExportRows(planning, rows, boardFilter) {
   const rowsByKey = new Map(rows.map((row) => [row.rowKey, row]))
-  const exportRows = normalizePlanning(planning)
+  return normalizePlanning(planning)
     .map((item) => {
       const row = rowsByKey.get(item.rowKey)
       if (!row) {
@@ -776,23 +780,23 @@ function createPlanningExportRows(planning, rows, boardFilter) {
         return null
       }
 
-      return {
-        datum: item.date,
-        schoolnaam: row.school,
-        instelling: board,
-        adres: [row.street, row.city].map(cleanValue).filter(Boolean).join(', '),
-        'm3 in': exportRawValue(row.incomingRaw),
-        'm3 uit': exportRawValue(row.outgoingRaw),
-        materieel: equipmentLabel(row.equipment),
-      }
+      return { item, row, board }
     })
     .filter(Boolean)
-
-  return exportRows.sort(
-    (left, right) =>
-      left.datum.localeCompare(right.datum, 'nl') ||
-      left.schoolnaam.localeCompare(right.schoolnaam, 'nl'),
-  )
+    .sort(
+      (left, right) =>
+        left.item.date.localeCompare(right.item.date, 'nl') ||
+        left.row.school.localeCompare(right.row.school, 'nl'),
+    )
+    .map(({ item, row, board }) => ({
+      datum: formatDisplayDate(item.date),
+      schoolnaam: row.school,
+      instelling: board,
+      adres: [row.street, row.city].map(cleanValue).filter(Boolean).join(', '),
+      'm3 in': exportRawValue(row.incomingRaw),
+      'm3 uit': exportRawValue(row.outgoingRaw),
+      materieel: equipmentLabel(row.equipment),
+    }))
 }
 
 async function downloadPlanningXlsx(exportRows) {
@@ -905,6 +909,7 @@ function App() {
   const [adminAuthError, setAdminAuthError] = useState('')
   const [pendingAdminAction, setPendingAdminAction] = useState(null)
   const [isPlanningModalOpen, setIsPlanningModalOpen] = useState(false)
+  const [isPlanningMapSelectMode, setIsPlanningMapSelectMode] = useState(false)
   const [planningStartDate, setPlanningStartDate] = useState(todayDateInputValue)
   const [planningActiveDate, setPlanningActiveDate] = useState(todayDateInputValue)
   const [hasPlanningStarted, setHasPlanningStarted] = useState(false)
@@ -970,7 +975,8 @@ function App() {
       !createDraft &&
       !isAuthModalOpen &&
       !photoPreview &&
-      !isPlanningModalOpen
+      !isPlanningModalOpen &&
+      !isPlanningMapSelectMode
     ) {
       return undefined
     }
@@ -986,6 +992,7 @@ function App() {
         setRevisionPhotoError('')
         setPhotoPreview(null)
         setIsPlanningModalOpen(false)
+        setIsPlanningMapSelectMode(false)
         setHasPlanningStarted(false)
         setPlanningSaveError('')
         setPlanningExportError('')
@@ -998,7 +1005,15 @@ function App() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [editDraft, revisionDraft, createDraft, isAuthModalOpen, photoPreview, isPlanningModalOpen])
+  }, [
+    editDraft,
+    revisionDraft,
+    createDraft,
+    isAuthModalOpen,
+    photoPreview,
+    isPlanningModalOpen,
+    isPlanningMapSelectMode,
+  ])
 
   const equipmentOptions = useMemo(
     () =>
@@ -1043,6 +1058,19 @@ function App() {
   const plannedRowsForActiveDate = useMemo(
     () => planningRows.filter((row) => plannedKeysForActiveDate.has(row.rowKey)),
     [plannedKeysForActiveDate, planningRows],
+  )
+  const planningByRowKey = useMemo(
+    () => new Map(planning.map((item) => [item.rowKey, item])),
+    [planning],
+  )
+  const plannedKeysForOtherDates = useMemo(
+    () =>
+      new Set(
+        planning
+          .filter((item) => item.date !== planningActiveDate)
+          .map((item) => item.rowKey),
+      ),
+    [planning, planningActiveDate],
   )
   const planningExportRows = useMemo(
     () => createPlanningExportRows(planning, rows, planningExportFilter),
@@ -1140,6 +1168,7 @@ function App() {
       setCreateDraft(null)
       setDragTargetId(null)
       setIsPlanningModalOpen(false)
+      setIsPlanningMapSelectMode(false)
       setHasPlanningStarted(false)
       setPendingAdminAction(null)
       return
@@ -1178,6 +1207,7 @@ function App() {
     setRevisionDraft(null)
     setCreateDraft(null)
     setDragTargetId(null)
+    setIsPlanningMapSelectMode(false)
     setPlanningSaveError('')
     setPlanningExportError('')
     setPlanningStartDate(todayDateInputValue())
@@ -1188,6 +1218,7 @@ function App() {
 
   function closePlanningModal() {
     setIsPlanningModalOpen(false)
+    setIsPlanningMapSelectMode(false)
     setHasPlanningStarted(false)
     setPlanningSaveError('')
     setPlanningExportError('')
@@ -1210,6 +1241,41 @@ function App() {
 
   function movePlanningDay(offsetDays) {
     setPlanningActiveDate((current) => shiftDateValue(current, offsetDays))
+    setPlanningSaveError('')
+  }
+
+  function planningMarkerState(row) {
+    if (!isPlanningMapSelectMode) {
+      return 'available'
+    }
+
+    if (plannedKeysForActiveDate.has(row.rowKey)) {
+      return 'active'
+    }
+
+    if (plannedKeysForOtherDates.has(row.rowKey)) {
+      return 'disabled'
+    }
+
+    return 'available'
+  }
+
+  function openPlanningMapSelectMode() {
+    if (!isAdmin || !hasPlanningStarted) {
+      return
+    }
+
+    setIsPlanningModalOpen(false)
+    setIsPlanningMapSelectMode(true)
+    setIsPanelOpen(false)
+    setMobileView('map')
+    setPlanningSaveError('')
+  }
+
+  function returnToPlanningOverlay() {
+    setIsPlanningMapSelectMode(false)
+    setIsPlanningModalOpen(true)
+    setHasPlanningStarted(true)
     setPlanningSaveError('')
   }
 
@@ -1426,9 +1492,12 @@ function App() {
       return
     }
 
-    const existing = planning.find(
-      (item) => item.date === planningActiveDate && item.rowKey === row.rowKey,
-    )
+    const existing = planning.find((item) => item.rowKey === row.rowKey)
+
+    if (existing && existing.date !== planningActiveDate) {
+      return
+    }
+
     const now = new Date().toISOString()
     const nextPlanning = existing
       ? planning.filter((item) => item.id !== existing.id)
@@ -1774,6 +1843,16 @@ function App() {
                 )}
                 {dragError && <span className="location-error">{dragError}</span>}
               </div>
+              {isPlanningMapSelectMode && (
+                <div className="planning-map-toolbar">
+                  <span>{formatDisplayDate(planningActiveDate)}</span>
+                  <span>{plannedRowsForActiveDate.length} geselecteerd</span>
+                  {isPlanningSaving && <span>Opslaan...</span>}
+                  <button type="button" className="primary-button compact" onClick={returnToPlanningOverlay}>
+                    Terug naar planning
+                  </button>
+                </div>
+              )}
               {loadState === 'loading' ? (
                 <div className="state-message compact">CSV laden...</div>
               ) : (
@@ -1800,20 +1879,28 @@ function App() {
                       <Marker
                         key={row.id}
                         position={[row.location.lat, row.location.lng]}
-                        icon={rowMarkerIcon(row, row.id === selectedRow?.id)}
-                        draggable={isAdmin && dragTargetId === row.id}
+                        icon={rowMarkerIcon(row, row.id === selectedRow?.id, planningMarkerState(row))}
+                        draggable={!isPlanningMapSelectMode && isAdmin && dragTargetId === row.id}
                         eventHandlers={{
-                          click: () => setSelectedId(row.id),
+                          click: () => {
+                            if (isPlanningMapSelectMode) {
+                              togglePlanningRow(row)
+                              return
+                            }
+
+                            setSelectedId(row.id)
+                          },
                           dragend: (event) => handleMarkerDragEnd(row, event),
                           contextmenu: (event) => {
                             event.originalEvent.preventDefault()
-                            if (!isAdmin) {
+                            if (!isAdmin || isPlanningMapSelectMode) {
                               return
                             }
                             openEditor(row)
                           },
                         }}
                       >
+                        {!isPlanningMapSelectMode && (
                         <Popup>
                           <strong>{row.school}</strong>
                           <span>
@@ -1886,6 +1973,7 @@ function App() {
                           </div>
                           {row.needsCheck && <em>Gegevens controleren</em>}
                         </Popup>
+                        )}
                       </Marker>
                     ))}
                 </MapContainer>
@@ -2392,7 +2480,7 @@ function App() {
                     >
                       Vorige dag
                     </button>
-                    <span className="planning-date-pill">{planningActiveDate}</span>
+                    <span className="planning-date-pill">{formatDisplayDate(planningActiveDate)}</span>
                     <button
                       type="button"
                       className="secondary-button compact"
@@ -2402,6 +2490,13 @@ function App() {
                     </button>
                     <button type="button" className="primary-button compact" onClick={closePlanningModal}>
                       Einde planning
+                    </button>
+                    <button
+                      type="button"
+                      className="secondary-button compact"
+                      onClick={openPlanningMapSelectMode}
+                    >
+                      Selecteer op kaart
                     </button>
                   </div>
 
@@ -2433,7 +2528,9 @@ function App() {
                   </div>
 
                   <div className="planning-status-row">
-                    <span>{plannedRowsForActiveDate.length} geselecteerd</span>
+                    <span>
+                      {plannedRowsForActiveDate.length} geselecteerd op deze dag | {planning.length} totaal gepland
+                    </span>
                     {isPlanningSaving && <span>Opslaan...</span>}
                   </div>
                   {planningSaveError && <p className="save-error">{planningSaveError}</p>}
@@ -2442,15 +2539,23 @@ function App() {
                   <div className="planning-school-list">
                     {planningRows.map((row) => {
                       const isPlanned = plannedKeysForActiveDate.has(row.rowKey)
+                      const isPlannedElsewhere = plannedKeysForOtherDates.has(row.rowKey)
+                      const plannedDate = planningByRowKey.get(row.rowKey)?.date
+                      const planningClass = [
+                        isPlanned ? 'selected' : '',
+                        isPlannedElsewhere ? 'planned-elsewhere' : '',
+                      ]
+                        .filter(Boolean)
+                        .join(' ')
 
                       return (
                         <button
                           key={row.rowKey}
                           type="button"
-                          className={`planning-school-toggle ${isPlanned ? 'selected' : ''}`}
+                          className={`planning-school-toggle ${planningClass}`}
                           onClick={() => togglePlanningRow(row)}
                           aria-pressed={isPlanned}
-                          disabled={isPlanningSaving}
+                          disabled={isPlanningSaving || isPlannedElsewhere}
                         >
                           <span className="planning-school-dot" aria-hidden="true" />
                           <span className="planning-school-text">
@@ -2458,6 +2563,9 @@ function App() {
                             <span>
                               {row.city || 'Plaats onbekend'} | {equipmentLabel(row.equipment)}
                             </span>
+                            {isPlannedElsewhere && (
+                              <span>Al gepland op {formatDisplayDate(plannedDate)}</span>
+                            )}
                           </span>
                         </button>
                       )
