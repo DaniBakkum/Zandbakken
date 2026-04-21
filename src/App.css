@@ -37,7 +37,8 @@
 }
 
 .source-pill,
-.planning-pill {
+.planning-pill,
+.overview-pill {
   align-items: center;
   appearance: none;
   background: #e0f2fe;
@@ -59,7 +60,8 @@
 }
 
 .source-pill:hover,
-.planning-pill:hover {
+.planning-pill:hover,
+.overview-pill:hover {
   background: #dbeafe;
 }
 
@@ -71,6 +73,12 @@
 
 .planning-pill:hover {
   background: #115e59;
+}
+
+.overview-pill {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  color: #1e293b;
 }
 
 .source-pill.admin-active {
@@ -92,7 +100,7 @@
   border-radius: 8px;
   display: grid;
   gap: 12px;
-  grid-template-columns: repeat(2, minmax(220px, 1fr));
+  grid-template-columns: repeat(3, minmax(200px, 1fr));
   margin-bottom: 18px;
   padding: 14px;
 }
@@ -140,6 +148,23 @@ textarea:focus,
 button:focus-visible {
   border-color: #0f766e;
   outline: 3px solid rgba(20, 184, 166, 0.2);
+}
+
+.inline-check {
+  align-items: center;
+  color: #334155;
+  display: inline-flex;
+  font-size: 13px;
+  font-weight: 800;
+  gap: 8px;
+  min-height: 42px;
+}
+
+.date-label-field .inline-check {
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  padding: 8px 10px;
 }
 
 .multi-dropdown {
@@ -359,6 +384,7 @@ button:focus-visible {
 .school-marker-icon {
   background: transparent;
   border: 0;
+  position: relative;
 }
 
 .school-marker-core {
@@ -410,6 +436,23 @@ button:focus-visible {
 .school-marker-core.planning-disabled {
   filter: grayscale(1);
   opacity: 0.35;
+}
+
+.school-marker-date-label {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.22);
+  color: #0f172a;
+  display: inline-flex;
+  font-size: 10px;
+  font-weight: 900;
+  left: 28px;
+  line-height: 1;
+  padding: 4px 6px;
+  position: absolute;
+  top: 6px;
+  white-space: nowrap;
 }
 
 .leaflet-popup-content {
@@ -987,6 +1030,113 @@ tbody tr.selected {
   width: 100%;
 }
 
+.planning-overview-panel {
+  background: #ffffff;
+  border: 1px solid #d8dee9;
+  border-radius: 8px;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.28);
+  max-height: calc(100vh - 48px);
+  max-width: 860px;
+  overflow: auto;
+  padding: 20px;
+  width: 100%;
+}
+
+.planning-overview-tools {
+  align-items: center;
+  border-bottom: 1px solid #e2e8f0;
+  color: #475569;
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 13px;
+  font-weight: 900;
+  gap: 12px;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  padding-bottom: 14px;
+}
+
+.planning-empty-state {
+  height: auto;
+  min-height: 120px;
+}
+
+.planning-overview-days {
+  display: grid;
+  gap: 12px;
+}
+
+.planning-day-group {
+  border: 1px solid #d8dee9;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.planning-day-group h3 {
+  background: #f1f5f9;
+  border-bottom: 1px solid #e2e8f0;
+  color: #0f172a;
+  font-size: 16px;
+  margin: 0;
+  padding: 10px 12px;
+}
+
+.planning-overview-list {
+  display: grid;
+}
+
+.planning-overview-row {
+  align-items: center;
+  border-bottom: 1px solid #e2e8f0;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 1fr auto;
+  padding: 10px 12px;
+}
+
+.planning-overview-row:last-child {
+  border-bottom: 0;
+}
+
+.planning-overview-row.editable {
+  cursor: pointer;
+}
+
+.planning-overview-row.editable:hover {
+  background: #ecfeff;
+}
+
+.planning-overview-main {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.planning-overview-main strong {
+  color: #0f172a;
+  font-size: 15px;
+}
+
+.planning-overview-main span {
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.planning-overview-edit {
+  border-top: 1px solid #e2e8f0;
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 16px;
+}
+
+.planning-overview-edit h3 {
+  color: #0f172a;
+  font-size: 20px;
+  margin: 0;
+}
+
 .planning-controls {
   align-items: center;
   border-bottom: 1px solid #e2e8f0;
@@ -1394,8 +1544,13 @@ tbody tr.selected {
   }
 
   .edit-panel,
-  .planning-panel {
+  .planning-panel,
+  .planning-overview-panel {
     max-height: calc(100vh - 24px);
+  }
+
+  .planning-overview-row {
+    grid-template-columns: 1fr;
   }
 
   .planning-export-bar {

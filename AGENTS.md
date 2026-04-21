@@ -93,6 +93,9 @@
 - The planning modal includes `Selecteer op kaart`; during map selection, clicked school markers toggle the active day's planning, selected/previously planned markers fade, and `Terug naar planning` returns to the modal with selections intact.
 - Planning dates are stored internally as `YYYY-MM-DD`, but shown in the UI and export as `dd-mm-yyyy`.
 - Planning export creates a real `.xlsx` file with one row per planned school/date and can filter for Agora, Zaanprimair, or both.
+- Mobile `Planning` opens a read-only day-grouped planning overview without admin password.
+- Desktop `Bekijk planning` opens a day-grouped overview for all users; admin users can edit a planning date or remove a planned school from that overview.
+- The filters include a `Toon datums` checkbox for showing/hiding `dd-mm-yyyy` labels beside planned map markers on desktop and mobile.
 
 ## Editing Behavior
 - Desktop: right-click a map marker to open the edit card.
@@ -165,6 +168,7 @@
 - Keep commits focused and update this changelog before pushing project changes.
 
 ## Changelog
+- 2026-04-21: Split planning viewing from planning editing. Mobile `Planning` now opens a read-only day-grouped overview without password, desktop has `Bekijk planning` for a day-grouped overview with admin edit/remove actions, and map marker date labels can be toggled with `Toon datums`. Verified with `npm run lint` and `npm run build`.
 - 2026-04-21: Added planning map-selection mode and made planning unique per school. Admin users can now use `Selecteer op kaart` from the planning modal, select multiple markers for the active day, and return with the modal selections intact; selected/planned markers fade during the workflow, schools planned on another day are disabled/gray/struck through in the modal, and visible/exported planning dates now use `dd-mm-yyyy` while storage remains `YYYY-MM-DD`. Verified with `npm run lint` and `npm run build`.
 - 2026-04-21: Added admin-only daily planning with server persistence and Excel export. Rows now carry stable `rowKey` values, `/api/rows` supports backward-compatible optional `planning` payloads, dev saves planning to `data/planning-data.json`, production stores planning under a separate Redis key, and the Planning modal supports start date, previous/next day selection, school toggles, and `.xlsx` export filtered by Agora/Zaanprimair/all. Verified with `npm run lint` and `npm run build`.
 - 2026-04-20: Relaxed revision photo compression thresholds to reduce upload rejections. Compression now tries more aggressive resize/quality rounds (`PHOTO_MIN_DIMENSION` lowered, `PHOTO_QUALITY_MIN` lowered, smaller quality steps) and accepts a larger fallback hard limit (target now ~300 KB, hard cap 900 KB), so normal phone photos fail less often while still being compressed to WebP. Verified with `npm run lint` and `npm run build`.

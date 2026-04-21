@@ -631,12 +631,15 @@ function revisionDraftToRow(currentRow, draft) {
   }
 }
 
-function rowMarkerIcon(row, isSelected, planningState = 'available') {
+function rowMarkerIcon(row, isSelected, planningState = 'available', planningDateLabel = '') {
   const color = equipmentColor(row.equipment)
   const selectedClass = isSelected ? 'selected' : ''
   const completeClass = row.revision.completed ? 'completed' : ''
   const planningClass = planningState === 'available' ? '' : `planning-${planningState}`
-  const html = `<span class="school-marker-core ${selectedClass} ${completeClass} ${planningClass}" style="--marker-fill:${color.fill};--marker-stroke:${color.stroke};"></span>`
+  const labelHtml = planningDateLabel
+    ? `<span class="school-marker-date-label">${planningDateLabel}</span>`
+    : ''
+  const html = `<span class="school-marker-core ${selectedClass} ${completeClass} ${planningClass}" style="--marker-fill:${color.fill};--marker-stroke:${color.stroke};"></span>${labelHtml}`
 
   return divIcon({
     className: 'school-marker-icon',
@@ -799,6 +802,30 @@ function createPlanningExportRows(planning, rows, boardFilter) {
     }))
 }
 
+function createPlanningOverviewGroups(planning, rows) {
+  const rowsByKey = new Map(rows.map((row) => [row.rowKey, row]))
+  const groups = new Map()
+
+  normalizePlanning(planning)
+    .map((item) => {
+      const row = rowsByKey.get(item.rowKey)
+      return row ? { item, row } : null
+    })
+    .filter(Boolean)
+    .sort(
+      (left, right) =>
+        left.item.date.localeCompare(right.item.date, 'nl') ||
+        left.row.school.localeCompare(right.row.school, 'nl'),
+    )
+    .forEach((entry) => {
+      const group = groups.get(entry.item.date) ?? []
+      group.push(entry)
+      groups.set(entry.item.date, group)
+    })
+
+  return [...groups.entries()].map(([date, items]) => ({ date, items }))
+}
+
 async function downloadPlanningXlsx(exportRows) {
   const XLSX = await import('xlsx')
   const headers = ['datum', 'schoolnaam', 'instelling', 'adres', 'm3 in', 'm3 uit', 'materieel']
@@ -918,6 +945,10 @@ function App() {
   const [planningExportFilter, setPlanningExportFilter] = useState('all')
   const [planningExportError, setPlanningExportError] = useState('')
   const [isPlanningExporting, setIsPlanningExporting] = useState(false)
+  const [isPlanningOverviewOpen, setIsPlanningOverviewOpen] = useState(false)
+  const [planningOverviewEditDraft, setPlanningOverviewEditDraft] = useState(null)
+  const [pendingPlanningEditId, setPendingPlanningEditId] = useState(null)
+  const [showPlanningDateLabels, setShowPlanningDateLabels] = useState(true)
 
   useEffect(() => {
     async function loadRows() {
@@ -976,7 +1007,8 @@ function App() {
       !isAuthModalOpen &&
       !photoPreview &&
       !isPlanningModalOpen &&
-      !isPlanningMapSelectMode
+      !isPlanningMapSelectMode &&
+      !isPlanningOverviewOpen
     ) {
       return undefined
     }
@@ -993,6 +1025,8 @@ function App() {
         setPhotoPreview(null)
         setIsPlanningModalOpen(false)
         setIsPlanningMapSelectMode(false)
+        setIsPlanningOverviewOpen(false)
+        setPlanningOverviewEditDraft(null)
         setHasPlanningStarted(false)
         setPlanningSaveError('')
         setPlanningExportError('')
@@ -1000,6 +1034,7 @@ function App() {
         setAdminPasswordInput('')
         setAdminAuthError('')
         setPendingAdminAction(null)
+        setPendingPlanningEditId(null)
       }
     }
 
@@ -1013,6 +1048,7 @@ function App() {
     photoPreview,
     isPlanningModalOpen,
     isPlanningMapSelectMode,
+    isPlanningOverviewOpen,
   ])
 
   const equipmentOptions = useMemo(
@@ -1062,6 +1098,18 @@ function App() {
   const planningByRowKey = useMemo(
     () => new Map(planning.map((item) => [item.rowKey, item])),
     [planning],
+  )
+  const planningOverviewGroups = useMemo(
+    () => createPlanningOverviewGroups(planning, rows),
+    [planning, rows],
+  )
+  const planningOverviewEditItem = useMemo(
+    () => planning.find((item) => item.id === planningOverviewEditDraft?.id) ?? null,
+    [planning, planningOverviewEditDraft],
+  )
+  const planningOverviewEditRow = useMemo(
+    () => rows.find((row) => row.rowKey === planningOverviewEditItem?.rowKey) ?? null,
+    [planningOverviewEditItem, rows],
   )
   const plannedKeysForOtherDates = useMemo(
     () =>
@@ -1159,6 +1207,7 @@ function App() {
     setAdminPasswordInput('')
     setAdminAuthError('')
     setPendingAdminAction(null)
+    setPendingPlanningEditId(null)
   }
 
   function toggleAdminAccess() {
@@ -1169,8 +1218,11 @@ function App() {
       setDragTargetId(null)
       setIsPlanningModalOpen(false)
       setIsPlanningMapSelectMode(false)
+      setIsPlanningOverviewOpen(false)
+      setPlanningOverviewEditDraft(null)
       setHasPlanningStarted(false)
       setPendingAdminAction(null)
+      setPendingPlanningEditId(null)
       return
     }
 
@@ -1187,6 +1239,11 @@ function App() {
       if (nextAction === 'planning') {
         openPlanningModal()
       }
+      if (nextAction === 'planning-overview-edit') {
+        setIsPlanningOverviewOpen(true)
+        openPlanningOverviewEditById(pendingPlanningEditId, true)
+        setPendingPlanningEditId(null)
+      }
       return
     }
 
@@ -1194,6 +1251,11 @@ function App() {
   }
 
   function openPlanningRequest() {
+    if (isMobile) {
+      openPlanningOverview()
+      return
+    }
+
     if (!isAdmin) {
       openAdminAuthModal('planning')
       return
@@ -1216,6 +1278,25 @@ function App() {
     setIsPlanningModalOpen(true)
   }
 
+  function openPlanningOverview() {
+    setEditDraft(null)
+    setRevisionDraft(null)
+    setCreateDraft(null)
+    setDragTargetId(null)
+    setIsPlanningModalOpen(false)
+    setIsPlanningMapSelectMode(false)
+    setPlanningOverviewEditDraft(null)
+    setPlanningSaveError('')
+    setPlanningExportError('')
+    setIsPlanningOverviewOpen(true)
+  }
+
+  function closePlanningOverview() {
+    setIsPlanningOverviewOpen(false)
+    setPlanningOverviewEditDraft(null)
+    setPlanningSaveError('')
+  }
+
   function closePlanningModal() {
     setIsPlanningModalOpen(false)
     setIsPlanningMapSelectMode(false)
@@ -1224,6 +1305,25 @@ function App() {
     setPlanningExportError('')
     setIsPlanningSaving(false)
     setIsPlanningExporting(false)
+  }
+
+  function openPlanningOverviewEditById(planningId, bypassAdmin = false) {
+    const item = planning.find((entry) => entry.id === planningId)
+    if (!item) {
+      return
+    }
+
+    if (!bypassAdmin && !isAdmin) {
+      setPendingPlanningEditId(planningId)
+      openAdminAuthModal('planning-overview-edit')
+      return
+    }
+
+    setPlanningOverviewEditDraft({
+      id: item.id,
+      date: item.date,
+    })
+    setPlanningSaveError('')
   }
 
   function startPlanning(event) {
@@ -1533,6 +1633,39 @@ function App() {
     setIsPlanningExporting(false)
   }
 
+  async function savePlanningOverviewEdit(event) {
+    event.preventDefault()
+    if (!planningOverviewEditDraft || !isValidDateValue(planningOverviewEditDraft.date)) {
+      setPlanningSaveError('Kies een geldige datum.')
+      return
+    }
+
+    const now = new Date().toISOString()
+    const nextPlanning = planning.map((item) =>
+      item.id === planningOverviewEditDraft.id
+        ? { ...item, date: planningOverviewEditDraft.date, updatedAt: now }
+        : item,
+    )
+    const serverSaveFailed = await persistPlanning(nextPlanning)
+
+    if (!serverSaveFailed) {
+      setPlanningOverviewEditDraft(null)
+    }
+  }
+
+  async function deletePlanningOverviewEdit() {
+    if (!planningOverviewEditDraft) {
+      return
+    }
+
+    const nextPlanning = planning.filter((item) => item.id !== planningOverviewEditDraft.id)
+    const serverSaveFailed = await persistPlanning(nextPlanning)
+
+    if (!serverSaveFailed) {
+      setPlanningOverviewEditDraft(null)
+    }
+  }
+
   async function saveDraft(event) {
     event.preventDefault()
     const currentRow = rows.find((row) => row.id === editDraft.id)
@@ -1693,6 +1826,15 @@ function App() {
           >
             Planning
           </button>
+          {!isMobile && (
+            <button
+              type="button"
+              className="overview-pill"
+              onClick={openPlanningOverview}
+            >
+              Bekijk planning
+            </button>
+          )}
           <button
             type="button"
             className={`source-pill ${isAdmin ? 'admin-active' : ''}`}
@@ -1811,6 +1953,18 @@ function App() {
                 ))}
               </select>
             </label>
+
+            <label className="field date-label-field">
+              <span>Kaartdatums</span>
+              <span className="inline-check">
+                <input
+                  type="checkbox"
+                  checked={showPlanningDateLabels}
+                  onChange={(event) => setShowPlanningDateLabels(event.target.checked)}
+                />
+                Toon datums
+              </span>
+            </label>
           </section>
 
           <section
@@ -1875,31 +2029,41 @@ function App() {
                   )}
                   {sortedRows
                     .filter((row) => row.location)
-                    .map((row) => (
-                      <Marker
-                        key={row.id}
-                        position={[row.location.lat, row.location.lng]}
-                        icon={rowMarkerIcon(row, row.id === selectedRow?.id, planningMarkerState(row))}
-                        draggable={!isPlanningMapSelectMode && isAdmin && dragTargetId === row.id}
-                        eventHandlers={{
-                          click: () => {
-                            if (isPlanningMapSelectMode) {
-                              togglePlanningRow(row)
-                              return
-                            }
+                    .map((row) => {
+                      const plannedDate = planningByRowKey.get(row.rowKey)?.date
+                      const planningDateLabel =
+                        showPlanningDateLabels && plannedDate ? formatDisplayDate(plannedDate) : ''
 
-                            setSelectedId(row.id)
-                          },
-                          dragend: (event) => handleMarkerDragEnd(row, event),
-                          contextmenu: (event) => {
-                            event.originalEvent.preventDefault()
-                            if (!isAdmin || isPlanningMapSelectMode) {
-                              return
-                            }
-                            openEditor(row)
-                          },
-                        }}
-                      >
+                      return (
+                        <Marker
+                          key={row.id}
+                          position={[row.location.lat, row.location.lng]}
+                          icon={rowMarkerIcon(
+                            row,
+                            row.id === selectedRow?.id,
+                            planningMarkerState(row),
+                            planningDateLabel,
+                          )}
+                          draggable={!isPlanningMapSelectMode && isAdmin && dragTargetId === row.id}
+                          eventHandlers={{
+                            click: () => {
+                              if (isPlanningMapSelectMode) {
+                                togglePlanningRow(row)
+                                return
+                              }
+
+                              setSelectedId(row.id)
+                            },
+                            dragend: (event) => handleMarkerDragEnd(row, event),
+                            contextmenu: (event) => {
+                              event.originalEvent.preventDefault()
+                              if (!isAdmin || isPlanningMapSelectMode) {
+                                return
+                              }
+                              openEditor(row)
+                            },
+                          }}
+                        >
                         {!isPlanningMapSelectMode && (
                         <Popup>
                           <strong>{row.school}</strong>
@@ -1975,7 +2139,8 @@ function App() {
                         </Popup>
                         )}
                       </Marker>
-                    ))}
+                      )
+                    })}
                 </MapContainer>
               )}
             </div>
@@ -2408,6 +2573,129 @@ function App() {
                   </button>
                 </div>
               </form>
+            </div>
+          )}
+
+          {isPlanningOverviewOpen && (
+            <div className="edit-overlay" role="presentation" onClick={closePlanningOverview}>
+              <section className="planning-overview-panel" onClick={(event) => event.stopPropagation()}>
+                <div className="edit-header">
+                  <div>
+                    <p className="eyebrow">Planning</p>
+                    <h2>Planning overzicht</h2>
+                  </div>
+                  <button
+                    type="button"
+                    className="icon-button"
+                    onClick={closePlanningOverview}
+                    aria-label="Planning overzicht sluiten"
+                    title="Planning overzicht sluiten"
+                  >
+                    &times;
+                  </button>
+                </div>
+
+                <div className="planning-overview-tools">
+                  <span>{planning.length} gepland</span>
+                  <label className="inline-check">
+                    <input
+                      type="checkbox"
+                      checked={showPlanningDateLabels}
+                      onChange={(event) => setShowPlanningDateLabels(event.target.checked)}
+                    />
+                    Toon datums op kaart
+                  </label>
+                </div>
+
+                {planningOverviewGroups.length === 0 ? (
+                  <div className="state-message compact planning-empty-state">
+                    Er staan nog geen scholen op de planning.
+                  </div>
+                ) : (
+                  <div className="planning-overview-days">
+                    {planningOverviewGroups.map((group) => (
+                      <article key={group.date} className="planning-day-group">
+                        <h3>{formatDisplayDate(group.date)}</h3>
+                        <div className="planning-overview-list">
+                          {group.items.map(({ item, row }) => (
+                            <article
+                              key={item.id}
+                              className={`planning-overview-row ${!isMobile ? 'editable' : ''}`}
+                              onClick={!isMobile ? () => openPlanningOverviewEditById(item.id) : undefined}
+                            >
+                              <div className="planning-overview-main">
+                                <strong>{row.school}</strong>
+                                <span>
+                                  {row.city || 'Plaats onbekend'} | {equipmentLabel(row.equipment)}
+                                </span>
+                                <span>{[row.street, row.city].map(cleanValue).filter(Boolean).join(', ')}</span>
+                              </div>
+                              {!isMobile && (
+                                <button
+                                  type="button"
+                                  className="secondary-button compact"
+                                  onClick={(event) => {
+                                    event.stopPropagation()
+                                    openPlanningOverviewEditById(item.id)
+                                  }}
+                                >
+                                  Bewerken
+                                </button>
+                              )}
+                            </article>
+                          ))}
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                )}
+
+                {planningOverviewEditDraft && planningOverviewEditRow && (
+                  <form className="planning-overview-edit" onSubmit={savePlanningOverviewEdit}>
+                    <div>
+                      <p className="eyebrow">Planning aanpassen</p>
+                      <h3>{planningOverviewEditRow.school}</h3>
+                    </div>
+                    <label className="field">
+                      <span>Datum</span>
+                      <input
+                        type="date"
+                        value={planningOverviewEditDraft.date}
+                        onChange={(event) =>
+                          setPlanningOverviewEditDraft((current) => ({
+                            ...current,
+                            date: event.target.value,
+                          }))
+                        }
+                      />
+                    </label>
+                    <div className="edit-actions">
+                      {planningSaveError && <p className="save-error">{planningSaveError}</p>}
+                      <button
+                        type="button"
+                        className="popup-reopen-button"
+                        onClick={deletePlanningOverviewEdit}
+                        disabled={isPlanningSaving}
+                      >
+                        Verwijderen
+                      </button>
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        onClick={() => {
+                          setPlanningOverviewEditDraft(null)
+                          setPlanningSaveError('')
+                        }}
+                      >
+                        Annuleren
+                      </button>
+                      <button type="submit" className="primary-button" disabled={isPlanningSaving}>
+                        {isPlanningSaving ? 'Opslaan...' : 'Opslaan'}
+                      </button>
+                    </div>
+                  </form>
+                )}
+              </section>
             </div>
           )}
 
