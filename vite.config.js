@@ -7,6 +7,7 @@ import path from 'node:path'
 
 const dataDirectory = path.resolve('data')
 const rowsFile = path.join(dataDirectory, 'planning-overrides.json')
+const planningFile = path.join(dataDirectory, 'planning-data.json')
 const UNKNOWN_VALUES = new Set(['', '?', '-'])
 const EQUIPMENT_CANONICAL = {
   UNKNOWN: 'Onbekend',
@@ -32,6 +33,23 @@ function sendJson(response, statusCode, payload) {
 
 function cleanValue(value) {
   return String(value ?? '').trim()
+}
+
+function makeRowKey(row) {
+  const existing = cleanValue(row?.rowKey)
+  if (existing) {
+    return existing
+  }
+
+  const customId = cleanValue(row?.id)
+  if (customId.startsWith('custom-')) {
+    return customId
+  }
+
+  return [row?.school, row?.street, row?.city]
+    .map(cleanValue)
+    .map((part) => part.toLowerCase())
+    .join('|')
 }
 
 function normalizeEquipmentValue(equipment) {
@@ -64,7 +82,11 @@ function normalizeRows(rows) {
   let changed = false
   const normalizedRows = rows.map((row) => {
     const equipment = normalizeEquipmentValue(row?.equipment)
+    const rowKey = makeRowKey(row)
     if (equipment !== cleanValue(row?.equipment)) {
+      changed = true
+    }
+    if (rowKey !== cleanValue(row?.rowKey)) {
       changed = true
     }
 
@@ -77,10 +99,68 @@ function normalizeRows(rows) {
       revision = { ...revision, equipment: revisionEquipment }
     }
 
-    return { ...row, equipment, revision }
+    return { ...row, rowKey, equipment, revision }
   })
 
   return { rows: normalizedRows, changed }
+}
+
+function normalizePlanning(planning) {
+  if (!Array.isArray(planning)) {
+    return { planning: null, changed: false }
+  }
+
+  let changed = false
+  const seen = new Set()
+  const normalizedPlanning = planning
+    .map((item) => {
+      const date = cleanValue(item?.date)
+      const rowKey = cleanValue(item?.rowKey)
+
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !rowKey) {
+        changed = true
+        return null
+      }
+
+      const id = cleanValue(item?.id) || `planning-${date}-${rowKey}`
+      const createdAt = item?.createdAt ? String(item.createdAt) : new Date().toISOString()
+      const updatedAt = item?.updatedAt ? String(item.updatedAt) : createdAt
+      const duplicateKey = `${date}|${rowKey}`
+
+      if (seen.has(duplicateKey)) {
+        changed = true
+        return null
+      }
+
+      seen.add(duplicateKey)
+      if (
+        id !== cleanValue(item?.id) ||
+        createdAt !== item?.createdAt ||
+        updatedAt !== item?.updatedAt
+      ) {
+        changed = true
+      }
+
+      return { id, date, rowKey, createdAt, updatedAt }
+    })
+    .filter(Boolean)
+
+  return { planning: normalizedPlanning, changed }
+}
+
+async function readPlanningFile() {
+  if (!existsSync(planningFile)) {
+    return { planning: null, persisted: false }
+  }
+
+  const planning = JSON.parse(await fs.readFile(planningFile, 'utf8'))
+  const normalized = normalizePlanning(planning)
+
+  if (normalized.changed) {
+    await fs.writeFile(planningFile, `${JSON.stringify(normalized.planning, null, 2)}\n`, 'utf8')
+  }
+
+  return { planning: normalized.planning, persisted: true }
 }
 
 function persistedRowsPlugin() {
@@ -89,20 +169,29 @@ function persistedRowsPlugin() {
     configureServer(server) {
       server.middlewares.use('/api/rows', async (request, response, next) => {
         if (request.method === 'GET') {
-          if (!existsSync(rowsFile)) {
-            sendJson(response, 200, { rows: null })
-            return
-          }
-
           try {
-            const rows = JSON.parse(await fs.readFile(rowsFile, 'utf8'))
-            const normalized = normalizeRows(rows)
+            let rows = null
+            let rowsPersisted = false
 
-            if (normalized.changed) {
-              await fs.writeFile(rowsFile, `${JSON.stringify(normalized.rows, null, 2)}\n`, 'utf8')
+            if (existsSync(rowsFile)) {
+              const storedRows = JSON.parse(await fs.readFile(rowsFile, 'utf8'))
+              const normalized = normalizeRows(storedRows)
+              rows = normalized.rows
+              rowsPersisted = true
+
+              if (normalized.changed) {
+                await fs.writeFile(rowsFile, `${JSON.stringify(normalized.rows, null, 2)}\n`, 'utf8')
+              }
             }
 
-            sendJson(response, 200, { rows: normalized.rows })
+            const planning = await readPlanningFile()
+
+            sendJson(response, 200, {
+              rows,
+              planning: planning.planning,
+              persisted: rowsPersisted,
+              planningPersisted: planning.persisted,
+            })
           } catch {
             sendJson(response, 500, { error: 'Opgeslagen data kon niet worden gelezen.' })
           }
@@ -113,15 +202,36 @@ function persistedRowsPlugin() {
         if (request.method === 'PUT') {
           try {
             const body = JSON.parse(await readRequestBody(request))
+            const hasRows = Object.hasOwn(body, 'rows')
+            const hasPlanning = Object.hasOwn(body, 'planning')
 
-            if (!Array.isArray(body.rows)) {
+            if (!hasRows && !hasPlanning) {
+              sendJson(response, 400, { error: 'rows of planning moet aanwezig zijn.' })
+              return
+            }
+
+            if (hasRows && !Array.isArray(body.rows)) {
               sendJson(response, 400, { error: 'rows moet een array zijn.' })
               return
             }
 
-            const normalized = normalizeRows(body.rows)
             await fs.mkdir(dataDirectory, { recursive: true })
-            await fs.writeFile(rowsFile, `${JSON.stringify(normalized.rows, null, 2)}\n`, 'utf8')
+
+            if (hasRows) {
+              const normalized = normalizeRows(body.rows)
+              await fs.writeFile(rowsFile, `${JSON.stringify(normalized.rows, null, 2)}\n`, 'utf8')
+            }
+
+            if (hasPlanning) {
+              const normalized = normalizePlanning(body.planning)
+              if (!normalized.planning) {
+                sendJson(response, 400, { error: 'planning moet een array zijn.' })
+                return
+              }
+
+              await fs.writeFile(planningFile, `${JSON.stringify(normalized.planning, null, 2)}\n`, 'utf8')
+            }
+
             sendJson(response, 200, { ok: true })
           } catch {
             sendJson(response, 400, { error: 'Data kon niet worden opgeslagen.' })

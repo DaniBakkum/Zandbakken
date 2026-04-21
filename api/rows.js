@@ -1,7 +1,9 @@
 import { readFile } from 'node:fs/promises'
 
 const ROWS_KEY = 'zandbak-dashboard-rows'
+const PLANNING_KEY = 'zandbak-dashboard-planning'
 const fallbackRowsUrl = new URL('../data/planning-overrides.json', import.meta.url)
+const fallbackPlanningUrl = new URL('../data/planning-data.json', import.meta.url)
 const UNKNOWN_VALUES = new Set(['', '?', '-'])
 const EQUIPMENT_CANONICAL = {
   UNKNOWN: 'Onbekend',
@@ -20,8 +22,34 @@ async function readFallbackRows() {
   return Array.isArray(rows) ? rows : null
 }
 
+async function readFallbackPlanning() {
+  try {
+    const planning = JSON.parse(await readFile(fallbackPlanningUrl, 'utf8'))
+    return Array.isArray(planning) ? planning : []
+  } catch {
+    return []
+  }
+}
+
 function cleanValue(value) {
   return String(value ?? '').trim()
+}
+
+function makeRowKey(row) {
+  const existing = cleanValue(row?.rowKey)
+  if (existing) {
+    return existing
+  }
+
+  const customId = cleanValue(row?.id)
+  if (customId.startsWith('custom-')) {
+    return customId
+  }
+
+  return [row?.school, row?.street, row?.city]
+    .map(cleanValue)
+    .map((part) => part.toLowerCase())
+    .join('|')
 }
 
 function normalizeEquipmentValue(equipment) {
@@ -54,7 +82,11 @@ function normalizeRows(rows) {
   let changed = false
   const normalizedRows = rows.map((row) => {
     const equipment = normalizeEquipmentValue(row?.equipment)
+    const rowKey = makeRowKey(row)
     if (equipment !== cleanValue(row?.equipment)) {
+      changed = true
+    }
+    if (rowKey !== cleanValue(row?.rowKey)) {
       changed = true
     }
 
@@ -67,10 +99,53 @@ function normalizeRows(rows) {
       revision = { ...revision, equipment: revisionEquipment }
     }
 
-    return { ...row, equipment, revision }
+    return { ...row, rowKey, equipment, revision }
   })
 
   return { rows: normalizedRows, changed }
+}
+
+function normalizePlanning(planning) {
+  if (!Array.isArray(planning)) {
+    return { planning: null, changed: false }
+  }
+
+  let changed = false
+  const seen = new Set()
+  const normalizedPlanning = planning
+    .map((item) => {
+      const date = cleanValue(item?.date)
+      const rowKey = cleanValue(item?.rowKey)
+
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !rowKey) {
+        changed = true
+        return null
+      }
+
+      const id = cleanValue(item?.id) || `planning-${date}-${rowKey}`
+      const createdAt = item?.createdAt ? String(item.createdAt) : new Date().toISOString()
+      const updatedAt = item?.updatedAt ? String(item.updatedAt) : createdAt
+      const duplicateKey = `${date}|${rowKey}`
+
+      if (seen.has(duplicateKey)) {
+        changed = true
+        return null
+      }
+
+      seen.add(duplicateKey)
+      if (
+        id !== cleanValue(item?.id) ||
+        createdAt !== item?.createdAt ||
+        updatedAt !== item?.updatedAt
+      ) {
+        changed = true
+      }
+
+      return { id, date, rowKey, createdAt, updatedAt }
+    })
+    .filter(Boolean)
+
+  return { planning: normalizedPlanning, changed }
 }
 
 function getRedisConfig() {
@@ -138,10 +213,15 @@ export default async function handler(request, response) {
   if (request.method === 'GET') {
     try {
       const redisResponse = await redisRequest(['GET', ROWS_KEY])
+      const planningResponse = await redisRequest(['GET', PLANNING_KEY])
       const redisRows = redisResponse?.result ? JSON.parse(redisResponse.result) : null
+      const redisPlanning = planningResponse?.result ? JSON.parse(planningResponse.result) : null
       const sourceRows = Array.isArray(redisRows) ? redisRows : await readFallbackRows()
+      const sourcePlanning = Array.isArray(redisPlanning) ? redisPlanning : await readFallbackPlanning()
       const normalized = normalizeRows(sourceRows)
+      const normalizedPlanning = normalizePlanning(sourcePlanning)
       let persisted = Array.isArray(redisRows)
+      let planningPersisted = Array.isArray(redisPlanning)
 
       if (normalized.changed) {
         const migrateResponse = await redisRequest(['SET', ROWS_KEY, JSON.stringify(normalized.rows)])
@@ -150,18 +230,35 @@ export default async function handler(request, response) {
         }
       }
 
+      if (normalizedPlanning.changed) {
+        const migrateResponse = await redisRequest([
+          'SET',
+          PLANNING_KEY,
+          JSON.stringify(normalizedPlanning.planning),
+        ])
+        if (migrateResponse) {
+          planningPersisted = true
+        }
+      }
+
       sendJson(response, 200, {
         rows: normalized.rows,
+        planning: normalizedPlanning.planning,
         persisted,
+        planningPersisted,
         storage: getStorageStatus(),
       })
     } catch {
       const fallbackRows = await readFallbackRows()
+      const fallbackPlanning = await readFallbackPlanning()
       const normalized = normalizeRows(fallbackRows)
+      const normalizedPlanning = normalizePlanning(fallbackPlanning)
 
       sendJson(response, 200, {
         rows: normalized.rows,
+        planning: normalizedPlanning.planning,
         persisted: false,
+        planningPersisted: false,
         storage: getStorageStatus(),
       })
     }
@@ -171,17 +268,38 @@ export default async function handler(request, response) {
 
   if (request.method === 'PUT') {
     const body = parseRowsBody(request.body)
+    const hasRows = Object.hasOwn(body ?? {}, 'rows')
+    const hasPlanning = Object.hasOwn(body ?? {}, 'planning')
 
-    if (!Array.isArray(body?.rows)) {
+    if (!hasRows && !hasPlanning) {
+      sendJson(response, 400, { error: 'rows of planning moet aanwezig zijn.' })
+      return
+    }
+
+    if (hasRows && !Array.isArray(body?.rows)) {
       sendJson(response, 400, { error: 'rows moet een array zijn.' })
       return
     }
 
-    try {
-      const normalized = normalizeRows(body.rows)
-      const redisResponse = await redisRequest(['SET', ROWS_KEY, JSON.stringify(normalized.rows)])
+    if (hasPlanning && !Array.isArray(body?.planning)) {
+      sendJson(response, 400, { error: 'planning moet een array zijn.' })
+      return
+    }
 
-      if (!redisResponse) {
+    try {
+      const redisResponses = []
+
+      if (hasRows) {
+        const normalized = normalizeRows(body.rows)
+        redisResponses.push(await redisRequest(['SET', ROWS_KEY, JSON.stringify(normalized.rows)]))
+      }
+
+      if (hasPlanning) {
+        const normalized = normalizePlanning(body.planning)
+        redisResponses.push(await redisRequest(['SET', PLANNING_KEY, JSON.stringify(normalized.planning)]))
+      }
+
+      if (redisResponses.every((redisResponse) => !redisResponse)) {
         sendJson(response, 200, {
           ok: true,
           persisted: false,
@@ -191,7 +309,11 @@ export default async function handler(request, response) {
         return
       }
 
-      sendJson(response, 200, { ok: true, persisted: true, storage: getStorageStatus() })
+      sendJson(response, 200, {
+        ok: true,
+        persisted: redisResponses.every(Boolean),
+        storage: getStorageStatus(),
+      })
     } catch {
       sendJson(response, 500, { error: 'Data kon niet worden opgeslagen.' })
     }

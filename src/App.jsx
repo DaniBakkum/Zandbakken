@@ -8,6 +8,7 @@ import { locationsByKey } from './data/locations'
 const CSV_URL = '/planning-zandbakken.csv'
 const ROWS_API_URL = '/api/rows'
 const STORAGE_KEY = 'zandbak-dashboard-rows'
+const PLANNING_STORAGE_KEY = 'zandbak-dashboard-planning'
 const MAP_CENTER = [52.466, 4.81]
 const MOBILE_QUERY = '(max-width: 760px)'
 const ADMIN_PASSWORD = 'Sturm1505!'
@@ -35,9 +36,115 @@ const PHOTO_HARD_MAX_BYTES = 900 * 1024
 const PHOTO_QUALITY_START = 0.72
 const PHOTO_QUALITY_MIN = 0.2
 const PHOTO_QUALITY_STEP = 0.05
+const EXPORT_FILTER_OPTIONS = [
+  { label: 'Allebei', value: 'all' },
+  { label: 'Alleen Agora', value: 'agora' },
+  { label: 'Alleen Zaanprimair', value: 'zaanprimair' },
+]
 
 function cleanValue(value) {
   return String(value ?? '').trim()
+}
+
+function makeRowKeyFromParts(school, street, city) {
+  return [school, street, city]
+    .map(cleanValue)
+    .map((part) => part.toLowerCase())
+    .join('|')
+}
+
+function makeStoredRowKey(row) {
+  const existing = cleanValue(row?.rowKey)
+  if (existing) {
+    return existing
+  }
+
+  const customId = cleanValue(row?.id)
+  if (customId.startsWith('custom-')) {
+    return customId
+  }
+
+  return makeRowKeyFromParts(row?.school ?? row?.School, row?.street ?? row?.Straatnaam, row?.city ?? row?.Plaats)
+}
+
+function createCustomRowKey() {
+  if (window.crypto?.randomUUID) {
+    return `custom-${window.crypto.randomUUID()}`
+  }
+
+  return `custom-${Date.now()}-${Math.floor(Math.random() * 100000)}`
+}
+
+function formatDateInput(date) {
+  const localDate = new Date(date)
+  localDate.setMinutes(localDate.getMinutes() - localDate.getTimezoneOffset())
+  return localDate.toISOString().slice(0, 10)
+}
+
+function todayDateInputValue() {
+  return formatDateInput(new Date())
+}
+
+function isValidDateValue(value) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(cleanValue(value))
+}
+
+function shiftDateValue(value, offsetDays) {
+  const base = isValidDateValue(value) ? new Date(`${value}T00:00:00`) : new Date()
+  base.setDate(base.getDate() + offsetDays)
+  return formatDateInput(base)
+}
+
+function formatPlanningDate(value) {
+  if (!isValidDateValue(value)) {
+    return 'Geen datum gekozen'
+  }
+
+  return new Date(`${value}T00:00:00`).toLocaleDateString('nl-NL', {
+    weekday: 'long',
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+  })
+}
+
+function makePlanningId(date, rowKey) {
+  return `planning-${date}-${rowKey}`
+}
+
+function normalizePlanning(planning) {
+  if (!Array.isArray(planning)) {
+    return []
+  }
+
+  const seen = new Set()
+
+  return planning
+    .map((item) => {
+      const date = cleanValue(item?.date)
+      const rowKey = cleanValue(item?.rowKey)
+
+      if (!isValidDateValue(date) || !rowKey) {
+        return null
+      }
+
+      const duplicateKey = `${date}|${rowKey}`
+      if (seen.has(duplicateKey)) {
+        return null
+      }
+
+      seen.add(duplicateKey)
+      const createdAt = item?.createdAt ? String(item.createdAt) : new Date().toISOString()
+
+      return {
+        id: cleanValue(item?.id) || makePlanningId(date, rowKey),
+        date,
+        rowKey,
+        createdAt,
+        updatedAt: item?.updatedAt ? String(item.updatedAt) : createdAt,
+      }
+    })
+    .filter(Boolean)
 }
 
 function parseCsv(text) {
@@ -343,6 +450,7 @@ function normalizeRevision(revision) {
 function normalizeRow(row, index) {
   const normalized = {
     id: `${index}-${cleanValue(row.School)}-${cleanValue(row.Straatnaam)}`,
+    rowKey: makeRowKeyFromParts(row.School, row.Straatnaam, row.Plaats),
     school: cleanValue(row.School),
     board: cleanValue(row.Bestuur),
     street: cleanValue(row.Straatnaam),
@@ -366,6 +474,7 @@ function normalizeRow(row, index) {
 function serializeRows(rows) {
   return rows.map((row) => ({
     id: row.id,
+    rowKey: row.rowKey,
     school: row.school,
     board: row.board,
     street: row.street,
@@ -381,6 +490,7 @@ function serializeRows(rows) {
 function reviveStoredRow(row) {
   const revived = {
     ...row,
+    rowKey: makeStoredRowKey(row),
     school: cleanValue(row.school),
     board: cleanValue(row.board),
     street: cleanValue(row.street),
@@ -462,8 +572,10 @@ function draftToRow(currentRow, draft) {
 function createRowFromDraft(draft) {
   const lat = parseCoordinate(draft.lat)
   const lng = parseCoordinate(draft.lng)
+  const rowKey = createCustomRowKey()
   const row = {
-    id: `custom-${Date.now()}-${Math.floor(Math.random() * 100000)}`,
+    id: rowKey,
+    rowKey,
     school: cleanValue(draft.school),
     board: cleanValue(draft.board),
     street: cleanValue(draft.street),
@@ -549,6 +661,16 @@ function loadStoredRows() {
   }
 }
 
+function loadStoredPlanning() {
+  try {
+    const storedPlanning = window.localStorage.getItem(PLANNING_STORAGE_KEY)
+    return storedPlanning ? normalizePlanning(JSON.parse(storedPlanning)) : null
+  } catch {
+    window.localStorage.removeItem(PLANNING_STORAGE_KEY)
+    return null
+  }
+}
+
 async function loadServerRows() {
   try {
     const response = await fetch(ROWS_API_URL)
@@ -565,24 +687,122 @@ async function loadServerRows() {
     return {
       rows: payload.rows.map(reviveStoredRow),
       hadLegacyEquipment: hasLegacyEquipmentRows(payload.rows),
+      planning: Array.isArray(payload.planning) ? normalizePlanning(payload.planning) : null,
+      planningPersisted: Boolean(payload.planningPersisted),
     }
   } catch {
     return null
   }
 }
 
-async function saveRowsToServer(rows) {
+async function saveRowsToServer(rows, planning) {
+  const payload = { rows: serializeRows(rows) }
+  if (planning) {
+    payload.planning = normalizePlanning(planning)
+  }
+
   const response = await fetch(ROWS_API_URL, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ rows: serializeRows(rows) }),
+    body: JSON.stringify(payload),
   })
 
   if (!response.ok) {
     throw new Error('Opslaan naar server is mislukt.')
   }
 
-  return response.json()
+  const result = await response.json()
+  if (planning && result?.persisted === false) {
+    throw new Error('Planning opslaan naar server is mislukt.')
+  }
+
+  return result
+}
+
+async function savePlanningToServer(planning) {
+  const response = await fetch(ROWS_API_URL, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ planning: normalizePlanning(planning) }),
+  })
+
+  if (!response.ok) {
+    throw new Error('Planning opslaan naar server is mislukt.')
+  }
+
+  const result = await response.json()
+  if (result?.persisted === false) {
+    throw new Error('Planning opslaan naar server is mislukt.')
+  }
+
+  return result
+}
+
+function normalizeBoardForExport(board) {
+  const cleaned = cleanValue(board)
+  const lower = cleaned.toLowerCase()
+
+  if (lower.includes('agora')) {
+    return 'Agora'
+  }
+
+  if (lower.includes('zaanprimair')) {
+    return 'Zaanprimair'
+  }
+
+  return 'Onbekend'
+}
+
+function exportRawValue(value) {
+  const cleaned = cleanValue(value)
+  return UNKNOWN_VALUES.has(cleaned) ? 'Onbekend' : cleaned
+}
+
+function createPlanningExportRows(planning, rows, boardFilter) {
+  const rowsByKey = new Map(rows.map((row) => [row.rowKey, row]))
+  const exportRows = normalizePlanning(planning)
+    .map((item) => {
+      const row = rowsByKey.get(item.rowKey)
+      if (!row) {
+        return null
+      }
+
+      const board = normalizeBoardForExport(row.board)
+      if (boardFilter !== 'all' && board.toLowerCase() !== boardFilter) {
+        return null
+      }
+
+      if (board === 'Onbekend' && boardFilter !== 'all') {
+        return null
+      }
+
+      return {
+        datum: item.date,
+        schoolnaam: row.school,
+        instelling: board,
+        adres: [row.street, row.city].map(cleanValue).filter(Boolean).join(', '),
+        'm3 in': exportRawValue(row.incomingRaw),
+        'm3 uit': exportRawValue(row.outgoingRaw),
+        materieel: equipmentLabel(row.equipment),
+      }
+    })
+    .filter(Boolean)
+
+  return exportRows.sort(
+    (left, right) =>
+      left.datum.localeCompare(right.datum, 'nl') ||
+      left.schoolnaam.localeCompare(right.schoolnaam, 'nl'),
+  )
+}
+
+async function downloadPlanningXlsx(exportRows) {
+  const XLSX = await import('xlsx')
+  const headers = ['datum', 'schoolnaam', 'instelling', 'adres', 'm3 in', 'm3 uit', 'materieel']
+  const sheet = XLSX.utils.json_to_sheet(exportRows, { header: headers })
+  const workbook = XLSX.utils.book_new()
+
+  XLSX.utils.book_append_sheet(workbook, sheet, 'Planning')
+  XLSX.writeFile(workbook, `zandbak-planning-${todayDateInputValue()}.xlsx`)
 }
 
 function sortRows(rows, sortConfig) {
@@ -650,6 +870,7 @@ function App() {
   const deviceMode = useDeviceMode()
   const isMobile = deviceMode === 'mobile'
   const [rows, setRows] = useState([])
+  const [planning, setPlanning] = useState([])
   const [loadState, setLoadState] = useState('loading')
   const [filters, setFilters] = useState({
     equipment: [],
@@ -682,6 +903,16 @@ function App() {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false)
   const [adminPasswordInput, setAdminPasswordInput] = useState('')
   const [adminAuthError, setAdminAuthError] = useState('')
+  const [pendingAdminAction, setPendingAdminAction] = useState(null)
+  const [isPlanningModalOpen, setIsPlanningModalOpen] = useState(false)
+  const [planningStartDate, setPlanningStartDate] = useState(todayDateInputValue)
+  const [planningActiveDate, setPlanningActiveDate] = useState(todayDateInputValue)
+  const [hasPlanningStarted, setHasPlanningStarted] = useState(false)
+  const [planningSaveError, setPlanningSaveError] = useState('')
+  const [isPlanningSaving, setIsPlanningSaving] = useState(false)
+  const [planningExportFilter, setPlanningExportFilter] = useState('all')
+  const [planningExportError, setPlanningExportError] = useState('')
+  const [isPlanningExporting, setIsPlanningExporting] = useState(false)
 
   useEffect(() => {
     async function loadRows() {
@@ -695,8 +926,14 @@ function App() {
         const csvRows = parseCsv(await csvResponse.text())
         const serverResult = await loadServerRows()
         const serverRows = serverResult?.rows ?? null
+        const serverPlanning = serverResult?.planning ?? null
         const storedRows = loadStoredRows()
+        const storedPlanning = loadStoredPlanning()
         const parsedRows = serverRows ?? storedRows ?? csvRows
+        const parsedPlanning =
+          serverPlanning && (serverResult?.planningPersisted || !storedPlanning)
+            ? serverPlanning
+            : storedPlanning ?? serverPlanning ?? []
         const parsedEquipmentOptions = [
           ...new Set(parsedRows.map((row) => equipmentLabel(row.equipment)).filter(Boolean)),
         ].sort((a, b) => a.localeCompare(b, 'nl'))
@@ -709,7 +946,12 @@ function App() {
           saveRowsToServer(storedRows).catch(() => {})
         }
 
+        if (!serverResult?.planningPersisted && storedPlanning) {
+          savePlanningToServer(storedPlanning).catch(() => {})
+        }
+
         setRows(parsedRows)
+        setPlanning(parsedPlanning)
         setFilters((current) => ({ ...current, equipment: parsedEquipmentOptions }))
         setSelectedId(parsedRows[0]?.id ?? null)
         setLoadState('ready')
@@ -722,7 +964,14 @@ function App() {
   }, [])
 
   useEffect(() => {
-    if (!editDraft && !revisionDraft && !createDraft && !isAuthModalOpen && !photoPreview) {
+    if (
+      !editDraft &&
+      !revisionDraft &&
+      !createDraft &&
+      !isAuthModalOpen &&
+      !photoPreview &&
+      !isPlanningModalOpen
+    ) {
       return undefined
     }
 
@@ -736,15 +985,20 @@ function App() {
         setRevisionSaveError('')
         setRevisionPhotoError('')
         setPhotoPreview(null)
+        setIsPlanningModalOpen(false)
+        setHasPlanningStarted(false)
+        setPlanningSaveError('')
+        setPlanningExportError('')
         setIsAuthModalOpen(false)
         setAdminPasswordInput('')
         setAdminAuthError('')
+        setPendingAdminAction(null)
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [editDraft, revisionDraft, createDraft, isAuthModalOpen, photoPreview])
+  }, [editDraft, revisionDraft, createDraft, isAuthModalOpen, photoPreview, isPlanningModalOpen])
 
   const equipmentOptions = useMemo(
     () =>
@@ -769,9 +1023,30 @@ function App() {
   }, [filters.completion, filters.equipment, rows])
 
   const sortedRows = useMemo(() => sortRows(filteredRows, sortConfig), [filteredRows, sortConfig])
+  const planningRows = useMemo(
+    () => sortRows(rows, { key: 'school', direction: 'asc' }),
+    [rows],
+  )
   const selectedRow = useMemo(
     () => sortedRows.find((row) => row.id === selectedId) ?? sortedRows[0],
     [selectedId, sortedRows],
+  )
+  const plannedKeysForActiveDate = useMemo(
+    () =>
+      new Set(
+        planning
+          .filter((item) => item.date === planningActiveDate)
+          .map((item) => item.rowKey),
+      ),
+    [planning, planningActiveDate],
+  )
+  const plannedRowsForActiveDate = useMemo(
+    () => planningRows.filter((row) => plannedKeysForActiveDate.has(row.rowKey)),
+    [plannedKeysForActiveDate, planningRows],
+  )
+  const planningExportRows = useMemo(
+    () => createPlanningExportRows(planning, rows, planningExportFilter),
+    [planning, planningExportFilter, rows],
   )
 
   function updateFilter(name, value) {
@@ -844,7 +1119,8 @@ function App() {
     setRevisionDraft(rowToRevisionDraft(row))
   }
 
-  function openAdminAuthModal() {
+  function openAdminAuthModal(action = null) {
+    setPendingAdminAction(action)
     setAdminAuthError('')
     setAdminPasswordInput('')
     setIsAuthModalOpen(true)
@@ -854,6 +1130,7 @@ function App() {
     setIsAuthModalOpen(false)
     setAdminPasswordInput('')
     setAdminAuthError('')
+    setPendingAdminAction(null)
   }
 
   function toggleAdminAccess() {
@@ -862,6 +1139,9 @@ function App() {
       setEditDraft(null)
       setCreateDraft(null)
       setDragTargetId(null)
+      setIsPlanningModalOpen(false)
+      setHasPlanningStarted(false)
+      setPendingAdminAction(null)
       return
     }
 
@@ -872,12 +1152,65 @@ function App() {
     event.preventDefault()
 
     if (adminPasswordInput === ADMIN_PASSWORD) {
+      const nextAction = pendingAdminAction
       setIsAdmin(true)
       closeAdminAuthModal()
+      if (nextAction === 'planning') {
+        openPlanningModal()
+      }
       return
     }
 
     setAdminAuthError('Onjuist wachtwoord. Probeer het opnieuw.')
+  }
+
+  function openPlanningRequest() {
+    if (!isAdmin) {
+      openAdminAuthModal('planning')
+      return
+    }
+
+    openPlanningModal()
+  }
+
+  function openPlanningModal() {
+    setEditDraft(null)
+    setRevisionDraft(null)
+    setCreateDraft(null)
+    setDragTargetId(null)
+    setPlanningSaveError('')
+    setPlanningExportError('')
+    setPlanningStartDate(todayDateInputValue())
+    setPlanningActiveDate(todayDateInputValue())
+    setHasPlanningStarted(false)
+    setIsPlanningModalOpen(true)
+  }
+
+  function closePlanningModal() {
+    setIsPlanningModalOpen(false)
+    setHasPlanningStarted(false)
+    setPlanningSaveError('')
+    setPlanningExportError('')
+    setIsPlanningSaving(false)
+    setIsPlanningExporting(false)
+  }
+
+  function startPlanning(event) {
+    event.preventDefault()
+
+    if (!isValidDateValue(planningStartDate)) {
+      setPlanningSaveError('Kies eerst een geldige startdatum.')
+      return
+    }
+
+    setPlanningSaveError('')
+    setPlanningActiveDate(planningStartDate)
+    setHasPlanningStarted(true)
+  }
+
+  function movePlanningDay(offsetDays) {
+    setPlanningActiveDate((current) => shiftDateValue(current, offsetDays))
+    setPlanningSaveError('')
   }
 
   function selectMobileLocation(row) {
@@ -1042,20 +1375,93 @@ function App() {
     setDragTargetId(editDraft.id)
   }
 
-  async function persistRows(nextRows, onServerSaveFailed) {
+  async function persistRows(nextRows, onServerSaveFailed, nextPlanning = null) {
     let serverSaveFailed = false
 
     try {
-      await saveRowsToServer(nextRows)
+      await saveRowsToServer(nextRows, nextPlanning)
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(serializeRows(nextRows)))
+      if (nextPlanning !== null) {
+        window.localStorage.setItem(PLANNING_STORAGE_KEY, JSON.stringify(normalizePlanning(nextPlanning)))
+      }
     } catch {
       serverSaveFailed = true
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(serializeRows(nextRows)))
+      if (nextPlanning !== null) {
+        window.localStorage.setItem(PLANNING_STORAGE_KEY, JSON.stringify(normalizePlanning(nextPlanning)))
+      }
       onServerSaveFailed?.()
     }
 
     setRows(nextRows)
+    if (nextPlanning !== null) {
+      setPlanning(nextPlanning)
+    }
     return serverSaveFailed
+  }
+
+  async function persistPlanning(nextPlanning) {
+    const normalizedPlanning = normalizePlanning(nextPlanning)
+    let serverSaveFailed = false
+
+    setIsPlanningSaving(true)
+
+    try {
+      await savePlanningToServer(normalizedPlanning)
+      window.localStorage.setItem(PLANNING_STORAGE_KEY, JSON.stringify(normalizedPlanning))
+      setPlanningSaveError('')
+    } catch {
+      serverSaveFailed = true
+      window.localStorage.setItem(PLANNING_STORAGE_KEY, JSON.stringify(normalizedPlanning))
+      setPlanningSaveError('Serveropslag is niet gelukt; deze planning is alleen in deze browser bewaard.')
+    }
+
+    setPlanning(normalizedPlanning)
+    setIsPlanningSaving(false)
+    return serverSaveFailed
+  }
+
+  async function togglePlanningRow(row) {
+    if (!isAdmin || !hasPlanningStarted || isPlanningSaving) {
+      return
+    }
+
+    const existing = planning.find(
+      (item) => item.date === planningActiveDate && item.rowKey === row.rowKey,
+    )
+    const now = new Date().toISOString()
+    const nextPlanning = existing
+      ? planning.filter((item) => item.id !== existing.id)
+      : [
+          ...planning,
+          {
+            id: makePlanningId(planningActiveDate, row.rowKey),
+            date: planningActiveDate,
+            rowKey: row.rowKey,
+            createdAt: now,
+            updatedAt: now,
+          },
+        ]
+
+    await persistPlanning(nextPlanning)
+  }
+
+  async function exportPlanning() {
+    if (planningExportRows.length === 0) {
+      setPlanningExportError('Er zijn geen geplande regels voor deze exportselectie.')
+      return
+    }
+
+    setIsPlanningExporting(true)
+    setPlanningExportError('')
+
+    try {
+      await downloadPlanningXlsx(planningExportRows)
+    } catch {
+      setPlanningExportError('Exporteren naar Excel is mislukt.')
+    }
+
+    setIsPlanningExporting(false)
   }
 
   async function saveDraft(event) {
@@ -1133,10 +1539,18 @@ function App() {
     }
 
     const nextRows = rows.filter((row) => row.id !== editDraft.id)
+    const removedRow = rows.find((row) => row.id === editDraft.id)
+    const nextPlanning = removedRow
+      ? planning.filter((item) => item.rowKey !== removedRow.rowKey)
+      : planning
     setSaveError('')
-    const serverSaveFailed = await persistRows(nextRows, () => {
-      setSaveError('Serveropslag is niet gelukt; verwijderen is alleen in deze browser bewaard.')
-    })
+    const serverSaveFailed = await persistRows(
+      nextRows,
+      () => {
+        setSaveError('Serveropslag is niet gelukt; verwijderen is alleen in deze browser bewaard.')
+      },
+      nextPlanning,
+    )
 
     if (!serverSaveFailed) {
       setEditDraft(null)
@@ -1202,14 +1616,23 @@ function App() {
           <p className="eyebrow">Planning zandbakken</p>
           <h1>Zandbak dashboard</h1>
         </div>
-        <button
-          type="button"
-          className={`source-pill ${isAdmin ? 'admin-active' : ''}`}
-          onClick={toggleAdminAccess}
-          aria-pressed={isAdmin}
-        >
-          {isAdmin ? 'Admin actief (klik om uit te loggen)' : 'Bron: public/planning-zandbakken.csv'}
-        </button>
+        <div className="header-actions">
+          <button
+            type="button"
+            className="planning-pill"
+            onClick={openPlanningRequest}
+          >
+            Planning
+          </button>
+          <button
+            type="button"
+            className={`source-pill ${isAdmin ? 'admin-active' : ''}`}
+            onClick={toggleAdminAccess}
+            aria-pressed={isAdmin}
+          >
+            {isAdmin ? 'Admin actief (klik om uit te loggen)' : 'Bron: public/planning-zandbakken.csv'}
+          </button>
+        </div>
       </header>
 
       {loadState === 'error' ? (
@@ -1897,6 +2320,151 @@ function App() {
                   </button>
                 </div>
               </form>
+            </div>
+          )}
+
+          {isPlanningModalOpen && (
+            <div className="edit-overlay" role="presentation" onClick={closePlanningModal}>
+              {!hasPlanningStarted ? (
+                <form
+                  className="planning-panel"
+                  onSubmit={startPlanning}
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <div className="edit-header">
+                    <div>
+                      <p className="eyebrow">Dagplanning</p>
+                      <h2>Planning starten</h2>
+                    </div>
+                    <button
+                      type="button"
+                      className="icon-button"
+                      onClick={closePlanningModal}
+                      aria-label="Planning sluiten"
+                      title="Planning sluiten"
+                    >
+                      &times;
+                    </button>
+                  </div>
+
+                  <label className="field">
+                    <span>Startdatum</span>
+                    <input
+                      type="date"
+                      value={planningStartDate}
+                      onChange={(event) => setPlanningStartDate(event.target.value)}
+                    />
+                  </label>
+
+                  <div className="edit-actions">
+                    {planningSaveError && <p className="save-error">{planningSaveError}</p>}
+                    <button type="button" className="secondary-button" onClick={closePlanningModal}>
+                      Annuleren
+                    </button>
+                    <button type="submit" className="primary-button">
+                      Planning starten
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <section className="planning-panel" onClick={(event) => event.stopPropagation()}>
+                  <div className="edit-header">
+                    <div>
+                      <p className="eyebrow">Dagplanning</p>
+                      <h2>{formatPlanningDate(planningActiveDate)}</h2>
+                    </div>
+                    <button
+                      type="button"
+                      className="icon-button"
+                      onClick={closePlanningModal}
+                      aria-label="Planning sluiten"
+                      title="Planning sluiten"
+                    >
+                      &times;
+                    </button>
+                  </div>
+
+                  <div className="planning-controls">
+                    <button
+                      type="button"
+                      className="secondary-button compact"
+                      onClick={() => movePlanningDay(-1)}
+                    >
+                      Vorige dag
+                    </button>
+                    <span className="planning-date-pill">{planningActiveDate}</span>
+                    <button
+                      type="button"
+                      className="secondary-button compact"
+                      onClick={() => movePlanningDay(1)}
+                    >
+                      Volgende dag
+                    </button>
+                    <button type="button" className="primary-button compact" onClick={closePlanningModal}>
+                      Einde planning
+                    </button>
+                  </div>
+
+                  <div className="planning-export-bar">
+                    <label className="field">
+                      <span>Export</span>
+                      <select
+                        value={planningExportFilter}
+                        onChange={(event) => {
+                          setPlanningExportFilter(event.target.value)
+                          setPlanningExportError('')
+                        }}
+                      >
+                        {EXPORT_FILTER_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      onClick={exportPlanning}
+                      disabled={isPlanningExporting}
+                    >
+                      {isPlanningExporting ? 'Exporteren...' : `Excel export (${planningExportRows.length})`}
+                    </button>
+                  </div>
+
+                  <div className="planning-status-row">
+                    <span>{plannedRowsForActiveDate.length} geselecteerd</span>
+                    {isPlanningSaving && <span>Opslaan...</span>}
+                  </div>
+                  {planningSaveError && <p className="save-error">{planningSaveError}</p>}
+                  {planningExportError && <p className="save-error">{planningExportError}</p>}
+
+                  <div className="planning-school-list">
+                    {planningRows.map((row) => {
+                      const isPlanned = plannedKeysForActiveDate.has(row.rowKey)
+
+                      return (
+                        <button
+                          key={row.rowKey}
+                          type="button"
+                          className={`planning-school-toggle ${isPlanned ? 'selected' : ''}`}
+                          onClick={() => togglePlanningRow(row)}
+                          aria-pressed={isPlanned}
+                          disabled={isPlanningSaving}
+                        >
+                          <span className="planning-school-dot" aria-hidden="true" />
+                          <span className="planning-school-text">
+                            <strong>{row.school}</strong>
+                            <span>
+                              {row.city || 'Plaats onbekend'} | {equipmentLabel(row.equipment)}
+                            </span>
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </section>
+              )}
             </div>
           )}
 

@@ -28,7 +28,16 @@
   margin: 0;
 }
 
-.source-pill {
+.header-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.source-pill,
+.planning-pill {
   align-items: center;
   appearance: none;
   background: #e0f2fe;
@@ -49,8 +58,19 @@
   white-space: nowrap;
 }
 
-.source-pill:hover {
+.source-pill:hover,
+.planning-pill:hover {
   background: #dbeafe;
+}
+
+.planning-pill {
+  background: #0f766e;
+  border-color: #0f766e;
+  color: #ffffff;
+}
+
+.planning-pill:hover {
+  background: #115e59;
 }
 
 .source-pill.admin-active {
@@ -871,6 +891,12 @@ tbody tr.selected {
   padding: 5px 9px;
 }
 
+.primary-button.compact {
+  font-size: 12px;
+  min-height: 30px;
+  padding: 5px 9px;
+}
+
 .save-error {
   color: #b91c1c;
   flex: 1 1 100%;
@@ -921,6 +947,131 @@ tbody tr.selected {
   width: 100%;
 }
 
+.planning-panel {
+  background: #ffffff;
+  border: 1px solid #d8dee9;
+  border-radius: 8px;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.28);
+  max-height: calc(100vh - 48px);
+  max-width: 920px;
+  overflow: auto;
+  padding: 20px;
+  width: 100%;
+}
+
+.planning-controls {
+  align-items: center;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+  padding-bottom: 14px;
+}
+
+.planning-date-pill {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  color: #0f172a;
+  font-size: 13px;
+  font-weight: 900;
+  min-height: 30px;
+  padding: 6px 10px;
+}
+
+.planning-export-bar {
+  align-items: end;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(180px, 260px) auto;
+  margin-bottom: 12px;
+}
+
+.planning-status-row {
+  align-items: center;
+  color: #475569;
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 13px;
+  font-weight: 800;
+  gap: 10px;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.planning-school-list {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+}
+
+.planning-school-toggle {
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #d8dee9;
+  border-radius: 8px;
+  color: #334155;
+  cursor: pointer;
+  display: flex;
+  gap: 10px;
+  min-height: 62px;
+  padding: 10px;
+  text-align: left;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.planning-school-toggle:hover {
+  border-color: #99f6e4;
+}
+
+.planning-school-toggle.selected {
+  background: #ecfeff;
+  border-color: #0f766e;
+  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.16);
+}
+
+.planning-school-toggle:disabled {
+  cursor: wait;
+  opacity: 0.76;
+}
+
+.planning-school-dot {
+  border: 2px solid #94a3b8;
+  border-radius: 999px;
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  height: 22px;
+  width: 22px;
+}
+
+.planning-school-toggle.selected .planning-school-dot {
+  background: #0f766e;
+  border-color: #0f766e;
+  box-shadow: inset 0 0 0 5px #ffffff;
+}
+
+.planning-school-text {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.planning-school-text strong {
+  color: #0f172a;
+  font-size: 14px;
+  line-height: 1.2;
+}
+
+.planning-school-text span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
+}
+
 @media (max-width: 1180px) {
   .dashboard {
     padding: 22px;
@@ -964,6 +1115,16 @@ tbody tr.selected {
 
   .dashboard-header h1 {
     font-size: 26px;
+  }
+
+  .header-actions {
+    gap: 6px;
+  }
+
+  .planning-pill {
+    font-size: 12px;
+    min-height: 36px;
+    padding: 7px 9px;
   }
 
   .source-pill {
@@ -1176,8 +1337,17 @@ tbody tr.selected {
     padding: 12px;
   }
 
-  .edit-panel {
+  .edit-panel,
+  .planning-panel {
     max-height: calc(100vh - 24px);
+  }
+
+  .planning-export-bar {
+    grid-template-columns: 1fr;
+  }
+
+  .planning-school-list {
+    grid-template-columns: 1fr;
   }
 
   .edit-grid {

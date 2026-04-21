@@ -20,6 +20,7 @@
 - `api/rows.js`: Vercel serverless API for persisted row edits in production.
 - `vercel.json`: Vercel build settings for the Vite app.
 - `data/planning-overrides.json`: server-side saved browser edits, created automatically after the first save.
+- `data/planning-data.json`: server-side saved daily planning records, initialized as an empty array.
 
 ## Data Model
 - CSV delimiter is semicolon (`;`).
@@ -51,6 +52,13 @@
     - `height`
     - `sizeBytes`
     - `createdAt`
+- Rows include a stable `rowKey` for planning references. CSV rows derive it from `School|Straatnaam|Plaats`; manually added schools use a generated `custom-*` key.
+- Daily planning records are stored separately from rows and revisions:
+  - `id`
+  - `date` (`YYYY-MM-DD`)
+  - `rowKey`
+  - `createdAt`
+  - `updatedAt`
 
 ## Current UX
 - Desktop is used above `760px`; mobile is used at `760px` and below via `matchMedia('(max-width: 760px)')`.
@@ -80,6 +88,9 @@
   - `Opnieuw openzetten` to remove completed state
 - Revisiekaart supports adding up to 3 photos per location, client-compressed to WebP before save, with replace/remove support.
 - Completed popup summary can show photo thumbnails that open in a larger preview overlay.
+- Admin users can open `Planning` from the header, choose a start date, walk through days, and toggle schools onto each day with round selection buttons.
+- Planning selections are independent from revision completion and can include the same school on multiple dates.
+- Planning export creates a real `.xlsx` file with one row per planned school/date and can filter for Agora, Zaanprimair, or both.
 
 ## Editing Behavior
 - Desktop: right-click a map marker to open the edit card.
@@ -111,10 +122,12 @@
 - Local development saves are written to the Vite devserver via `PUT /api/rows`.
 - Vercel production saves are handled by `api/rows.js`.
 - The devserver persists saved rows in `data/planning-overrides.json`.
+- The devserver persists saved planning in `data/planning-data.json`.
 - On Vercel, `api/rows.js` uses Upstash Redis when either `UPSTASH_REDIS_REST_URL`/`UPSTASH_REDIS_REST_TOKEN` or Vercel KV-style `KV_REST_API_URL`/`KV_REST_API_TOKEN` are configured. Diagnostics also report `KV_URL`, `REDIS_URL`, and `KV_REST_API_READ_ONLY_TOKEN`.
-- Without Upstash Redis, Vercel reads bundled fallback rows from `data/planning-overrides.json`; edits are kept in browser localStorage only.
-- On load, the app reads `GET /api/rows`; if server rows exist, they override the CSV/fallback.
+- Without Upstash Redis, Vercel reads bundled fallback rows from `data/planning-overrides.json` and bundled fallback planning from `data/planning-data.json`; edits are kept in browser localStorage only.
+- On load, the app reads `GET /api/rows`; if server rows/planning exist, they override the CSV/fallback.
 - Existing `localStorage` data under `zandbak-dashboard-rows` is used only as a fallback/migration source and is pushed to the server if no server rows exist yet.
+- Existing `localStorage` data under `zandbak-dashboard-planning` is used only as a fallback/migration source and is pushed to the server if no server planning exists yet.
 - There is currently no export/write-back to the CSV itself.
 
 ## Important User Decisions Already Made
@@ -135,6 +148,7 @@
 - `react-dom`
 - `leaflet`
 - `react-leaflet`
+- `xlsx`
 - Vite and ESLint dev tooling.
 
 ## Cautions For Future Agents
@@ -143,11 +157,13 @@
 - Keep CSV replaceable and semicolon-delimited.
 - If editing route links, preserve white text in Leaflet popups.
 - If editing persistence, keep `/api/rows` compatible with the serialized row shape from `serializeRows()`.
+- If editing planning, keep planning records separate from `revision` and refer to schools by stable `rowKey`.
 - For Vercel deployment with central edit persistence, connect Upstash Redis. The current Vercel integration may expose `KV_REST_API_URL` and `KV_REST_API_TOKEN`; these are supported.
 - If changing map/table behavior, run both `npm run lint` and `npm run build`.
 - Keep commits focused and update this changelog before pushing project changes.
 
 ## Changelog
+- 2026-04-21: Added admin-only daily planning with server persistence and Excel export. Rows now carry stable `rowKey` values, `/api/rows` supports backward-compatible optional `planning` payloads, dev saves planning to `data/planning-data.json`, production stores planning under a separate Redis key, and the Planning modal supports start date, previous/next day selection, school toggles, and `.xlsx` export filtered by Agora/Zaanprimair/all. Verified with `npm run lint` and `npm run build`.
 - 2026-04-20: Relaxed revision photo compression thresholds to reduce upload rejections. Compression now tries more aggressive resize/quality rounds (`PHOTO_MIN_DIMENSION` lowered, `PHOTO_QUALITY_MIN` lowered, smaller quality steps) and accepts a larger fallback hard limit (target now ~300 KB, hard cap 900 KB), so normal phone photos fail less often while still being compressed to WebP. Verified with `npm run lint` and `npm run build`.
 - 2026-04-20: Updated map marker visual distinction between schools and user location. Replaced the `Mijn locatie` marker with a custom blue crosshair icon and changed `mobiel/knijper` school marker color from blue to purple so school bolletjes are no longer blue. Verified with `npm run lint` and `npm run build`.
 - 2026-04-20: Merged materieel categories and added canonical server migration. Frontend now normalizes to `mobiel/knijper`, `kraantje/shovel`, or `Onbekend` (including revision equipment), filters/dropdowns/markers only use these values, and both dev (`vite.config.js`) and production (`api/rows.js`) `/api/rows` paths now normalize on `GET`/`PUT` and auto-migrate legacy values on read (best effort). Verified with `npm run lint` and `npm run build`.
