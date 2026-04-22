@@ -929,7 +929,8 @@ tbody tr.selected {
 }
 
 .primary-button,
-.secondary-button {
+.secondary-button,
+.danger-button {
   border-radius: 8px;
   cursor: pointer;
   font: inherit;
@@ -955,7 +956,20 @@ tbody tr.selected {
   color: #1e293b;
 }
 
-.secondary-button.compact {
+.danger-button {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
+}
+
+.secondary-button:disabled,
+.danger-button:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
+.secondary-button.compact,
+.danger-button.compact {
   font-size: 12px;
   min-height: 30px;
   padding: 5px 9px;
@@ -1171,7 +1185,7 @@ tbody tr.selected {
   align-items: end;
   display: grid;
   gap: 10px;
-  grid-template-columns: minmax(180px, 260px) auto;
+  grid-template-columns: minmax(180px, 260px) auto auto;
   margin-bottom: 12px;
 }
 

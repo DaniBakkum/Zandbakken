@@ -93,6 +93,7 @@
 - The planning modal includes `Selecteer op kaart`; during map selection, clicked school markers toggle the active day's planning, selected/previously planned markers fade, and `Terug naar planning` returns to the modal with selections intact.
 - Planning dates are stored internally as `YYYY-MM-DD`, but shown in the UI and export as `dd-mm-yyyy`.
 - Planning export creates a real `.xlsx` file with one row per planned school/date and can filter for Agora, Zaanprimair, or both.
+- Admin users can clear the entire planning after confirmation via `Planning leegmaken`.
 - Mobile `Planning` opens a read-only day-grouped planning overview without admin password.
 - Desktop `Bekijk planning` opens a day-grouped overview for all users; admin users can edit a planning date or remove a planned school from that overview.
 - The filters include a `Toon datums` checkbox for showing/hiding `dd-mm-yyyy` labels beside planned map markers on desktop and mobile.
@@ -168,6 +169,7 @@
 - Keep commits focused and update this changelog before pushing project changes.
 
 ## Changelog
+- 2026-04-22: Added an admin-only `Planning leegmaken` action in the planning modal and admin planning overview. The action asks for confirmation, clears all planning records via the existing planning persistence flow, and keeps server/local fallback behavior unchanged. Verified with `npm run lint` and `npm run build`.
 - 2026-04-21: Added distance-aware planning overview behavior. When `Mijn locatie` is known, planning overview rows show the distance to each school and rows within each visible day are sorted by distance while day ordering stays date-based. Verified with `npm run lint` and `npm run build`.
 - 2026-04-21: Updated the read-only planning overview so completed/revised locations are struck through, days where every planned location is completed are hidden, and clicking a planning location closes the overview, switches to the map, selects the marker, and opens its popup with route/revision actions. Verified with `npm run lint` and `npm run build`.
 - 2026-04-21: Fixed planned marker/date label positioning. Date labels now render as Leaflet tooltips instead of being embedded inside the marker `divIcon`, so school marker anchors stay stable while zooming/panning on desktop and mobile. Verified with `npm run lint` and `npm run build`.

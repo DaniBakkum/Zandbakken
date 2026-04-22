@@ -1754,6 +1754,24 @@ function App() {
     setIsPlanningExporting(false)
   }
 
+  async function clearPlanning() {
+    if (!isAdmin || isPlanningSaving || planning.length === 0) {
+      return
+    }
+
+    const confirmed = window.confirm(
+      `Weet je zeker dat je de volledige planning wilt leegmaken? Dit verwijdert ${planning.length} geplande scholen.`,
+    )
+
+    if (!confirmed) {
+      return
+    }
+
+    setPlanningOverviewEditDraft(null)
+    setPlanningExportError('')
+    await persistPlanning([])
+  }
+
   async function savePlanningOverviewEdit(event) {
     event.preventDefault()
     if (!planningOverviewEditDraft || !isValidDateValue(planningOverviewEditDraft.date)) {
@@ -2741,6 +2759,16 @@ function App() {
                     />
                     Toon datums op kaart
                   </label>
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      className="danger-button compact"
+                      onClick={clearPlanning}
+                      disabled={isPlanningSaving || planning.length === 0}
+                    >
+                      Planning leegmaken
+                    </button>
+                  )}
                 </div>
 
                 {planningOverviewGroups.length === 0 ? (
@@ -2953,6 +2981,14 @@ function App() {
                       disabled={isPlanningExporting}
                     >
                       {isPlanningExporting ? 'Exporteren...' : `Excel export (${planningExportRows.length})`}
+                    </button>
+                    <button
+                      type="button"
+                      className="danger-button"
+                      onClick={clearPlanning}
+                      disabled={isPlanningSaving || planning.length === 0}
+                    >
+                      Planning leegmaken
                     </button>
                   </div>
 
