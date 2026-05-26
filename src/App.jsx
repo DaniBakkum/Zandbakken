@@ -762,8 +762,8 @@ async function saveRowsToServer(rows, planning) {
   }
 
   const result = await response.json()
-  if (planning && result?.persisted === false) {
-    throw new Error('Planning opslaan naar server is mislukt.')
+  if (result?.persisted === false) {
+    throw new Error('Opslaan naar server is mislukt.')
   }
 
   return result
@@ -783,6 +783,25 @@ async function savePlanningToServer(planning) {
   const result = await response.json()
   if (result?.persisted === false) {
     throw new Error('Planning opslaan naar server is mislukt.')
+  }
+
+  return result
+}
+
+async function saveRevisionToServer(rowKey, revision) {
+  const response = await fetch(ROWS_API_URL, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ revision: { rowKey, revision } }),
+  })
+
+  if (!response.ok) {
+    throw new Error('Revisie opslaan naar server is mislukt.')
+  }
+
+  const result = await response.json()
+  if (result?.persisted === false) {
+    throw new Error('Revisie opslaan naar server is mislukt.')
   }
 
   return result
@@ -1687,6 +1706,22 @@ function App() {
     return serverSaveFailed
   }
 
+  async function persistRevisionRows(nextRows, nextRow, onServerSaveFailed) {
+    let serverSaveFailed = false
+
+    try {
+      await saveRevisionToServer(nextRow.rowKey, nextRow.revision)
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(serializeRows(nextRows)))
+    } catch {
+      serverSaveFailed = true
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(serializeRows(nextRows)))
+      onServerSaveFailed?.()
+    }
+
+    setRows(nextRows)
+    return serverSaveFailed
+  }
+
   async function persistPlanning(nextPlanning) {
     const normalizedPlanning = normalizePlanning(nextPlanning)
     let serverSaveFailed = false
@@ -1843,7 +1878,7 @@ function App() {
 
     setIsRevisionSaving(true)
     setRevisionSaveError('')
-    const serverSaveFailed = await persistRows(nextRows, () => {
+    const serverSaveFailed = await persistRevisionRows(nextRows, nextRow, () => {
       setRevisionSaveError('Serveropslag is niet gelukt; deze revisie is alleen in deze browser bewaard.')
     })
 
@@ -1913,7 +1948,9 @@ function App() {
     const nextRows = rows.map((item) => (item.id === row.id ? nextRow : item))
 
     setRevisionSaveError('')
-    await persistRows(nextRows)
+    await persistRevisionRows(nextRows, nextRow, () => {
+      setRevisionSaveError('Serveropslag is niet gelukt; deze revisie is alleen in deze browser bewaard.')
+    })
     setSelectedId(row.id)
   }
 

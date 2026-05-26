@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises'
 
 const ROWS_KEY = 'zandbak-dashboard-rows'
 const PLANNING_KEY = 'zandbak-dashboard-planning'
+const REVISIONS_KEY = 'zandbak-dashboard-revisions'
 const fallbackRowsUrl = new URL('../data/planning-overrides.json', import.meta.url)
 const fallbackPlanningUrl = new URL('../data/planning-data.json', import.meta.url)
 const UNKNOWN_VALUES = new Set(['', '?', '-'])
@@ -105,6 +106,50 @@ function normalizeRows(rows) {
   return { rows: normalizedRows, changed }
 }
 
+function extractRevisions(rows) {
+  if (!Array.isArray(rows)) {
+    return {}
+  }
+
+  return rows.reduce((revisions, row) => {
+    const rowKey = makeRowKey(row)
+    if (rowKey && row?.revision && typeof row.revision === 'object') {
+      revisions[rowKey] = row.revision
+    }
+    return revisions
+  }, {})
+}
+
+function normalizeRevisions(revisions) {
+  if (!revisions || typeof revisions !== 'object' || Array.isArray(revisions)) {
+    return {}
+  }
+
+  return Object.entries(revisions).reduce((normalized, [rowKey, revision]) => {
+    if (cleanValue(rowKey) && revision && typeof revision === 'object') {
+      normalized[cleanValue(rowKey)] = revision
+    }
+    return normalized
+  }, {})
+}
+
+function applyRevisions(rows, revisions) {
+  const normalizedRevisions = normalizeRevisions(revisions)
+  if (!Array.isArray(rows)) {
+    return rows
+  }
+
+  return rows.map((row) => {
+    const rowKey = makeRowKey(row)
+    const revision = normalizedRevisions[rowKey]
+    return revision ? { ...row, revision } : row
+  })
+}
+
+function countCompletedRevisions(rows) {
+  return Array.isArray(rows) ? rows.filter((row) => row?.revision?.completed === true).length : 0
+}
+
 function normalizePlanning(planning) {
   if (!Array.isArray(planning)) {
     return { planning: null, changed: false }
@@ -160,6 +205,10 @@ function getRedisConfig() {
   return url && token ? { token, url: url.replace(/\/$/, '') } : null
 }
 
+function shouldFailOnRedisError() {
+  return Boolean(process.env.VERCEL && getRedisConfig())
+}
+
 function getStorageStatus() {
   return {
     hasUpstashUrl: Boolean(process.env.UPSTASH_REDIS_REST_URL),
@@ -212,14 +261,22 @@ export default async function handler(request, response) {
     try {
       const redisResponse = await redisRequest(['GET', ROWS_KEY])
       const planningResponse = await redisRequest(['GET', PLANNING_KEY])
+      const revisionsResponse = await redisRequest(['GET', REVISIONS_KEY])
       const redisRows = redisResponse?.result ? JSON.parse(redisResponse.result) : null
       const redisPlanning = planningResponse?.result ? JSON.parse(planningResponse.result) : null
+      const redisRevisions = revisionsResponse?.result ? normalizeRevisions(JSON.parse(revisionsResponse.result)) : null
       const sourceRows = Array.isArray(redisRows) ? redisRows : await readFallbackRows()
       const sourcePlanning = Array.isArray(redisPlanning) ? redisPlanning : await readFallbackPlanning()
       const normalized = normalizeRows(sourceRows)
+      const sourceRevisions =
+        redisRevisions && Object.keys(redisRevisions).length > 0
+          ? redisRevisions
+          : extractRevisions(normalized.rows)
+      normalized.rows = applyRevisions(normalized.rows, sourceRevisions)
       const normalizedPlanning = normalizePlanning(sourcePlanning)
       let persisted = Array.isArray(redisRows)
       let planningPersisted = Array.isArray(redisPlanning)
+      let revisionsPersisted = Boolean(redisRevisions)
 
       if (normalized.changed) {
         const migrateResponse = await redisRequest(['SET', ROWS_KEY, JSON.stringify(normalized.rows)])
@@ -239,14 +296,40 @@ export default async function handler(request, response) {
         }
       }
 
+      if (!redisRevisions && Object.keys(sourceRevisions).length > 0) {
+        const migrateResponse = await redisRequest(['SET', REVISIONS_KEY, JSON.stringify(sourceRevisions)])
+        if (migrateResponse) {
+          revisionsPersisted = true
+        }
+      }
+
+      console.info('rows:get', {
+        rowsKey: ROWS_KEY,
+        revisionsKey: REVISIONS_KEY,
+        rows: normalized.rows?.length ?? 0,
+        completedRevisions: countCompletedRevisions(normalized.rows),
+        persisted,
+        revisionsPersisted,
+      })
+
       sendJson(response, 200, {
         rows: normalized.rows,
         planning: normalizedPlanning.planning,
         persisted,
         planningPersisted,
+        revisionsPersisted,
         storage: getStorageStatus(),
       })
-    } catch {
+    } catch (error) {
+      if (shouldFailOnRedisError()) {
+        console.error('rows:get failed', { message: error instanceof Error ? error.message : String(error) })
+        sendJson(response, 500, {
+          error: 'Opgeslagen data kon niet worden gelezen.',
+          storage: getStorageStatus(),
+        })
+        return
+      }
+
       const fallbackRows = await readFallbackRows()
       const fallbackPlanning = await readFallbackPlanning()
       const normalized = normalizeRows(fallbackRows)
@@ -257,6 +340,7 @@ export default async function handler(request, response) {
         planning: normalizedPlanning.planning,
         persisted: false,
         planningPersisted: false,
+        revisionsPersisted: false,
         storage: getStorageStatus(),
       })
     }
@@ -268,9 +352,10 @@ export default async function handler(request, response) {
     const body = parseRowsBody(request.body)
     const hasRows = Object.hasOwn(body ?? {}, 'rows')
     const hasPlanning = Object.hasOwn(body ?? {}, 'planning')
+    const hasRevision = Object.hasOwn(body ?? {}, 'revision')
 
-    if (!hasRows && !hasPlanning) {
-      sendJson(response, 400, { error: 'rows of planning moet aanwezig zijn.' })
+    if (!hasRows && !hasPlanning && !hasRevision) {
+      sendJson(response, 400, { error: 'rows, planning of revision moet aanwezig zijn.' })
       return
     }
 
@@ -284,12 +369,37 @@ export default async function handler(request, response) {
       return
     }
 
+    if (
+      hasRevision &&
+      (!body.revision ||
+        typeof body.revision !== 'object' ||
+        !cleanValue(body.revision.rowKey) ||
+        !body.revision.revision ||
+        typeof body.revision.revision !== 'object')
+    ) {
+      sendJson(response, 400, { error: 'revision moet rowKey en revision bevatten.' })
+      return
+    }
+
     try {
       const redisResponses = []
+      let revisionResponses = []
+
+      const currentRowsResponse = await redisRequest(['GET', ROWS_KEY])
+      const currentRevisionsResponse = await redisRequest(['GET', REVISIONS_KEY])
+      const currentRows = currentRowsResponse?.result ? JSON.parse(currentRowsResponse.result) : null
+      const currentRevisions = currentRevisionsResponse?.result
+        ? normalizeRevisions(JSON.parse(currentRevisionsResponse.result))
+        : {}
+      const protectedRevisions = {
+        ...extractRevisions(currentRows),
+        ...currentRevisions,
+      }
 
       if (hasRows) {
         const normalized = normalizeRows(body.rows)
-        redisResponses.push(await redisRequest(['SET', ROWS_KEY, JSON.stringify(normalized.rows)]))
+        const protectedRows = applyRevisions(normalized.rows, protectedRevisions)
+        redisResponses.push(await redisRequest(['SET', ROWS_KEY, JSON.stringify(protectedRows)]))
       }
 
       if (hasPlanning) {
@@ -297,7 +407,25 @@ export default async function handler(request, response) {
         redisResponses.push(await redisRequest(['SET', PLANNING_KEY, JSON.stringify(normalized.planning)]))
       }
 
-      if (redisResponses.every((redisResponse) => !redisResponse)) {
+      if (hasRevision) {
+        const rowKey = cleanValue(body.revision.rowKey)
+        const nextRevisions = {
+          ...protectedRevisions,
+          [rowKey]: body.revision.revision,
+        }
+        revisionResponses = [
+          await redisRequest(['SET', REVISIONS_KEY, JSON.stringify(nextRevisions)]),
+        ]
+
+        if (Array.isArray(currentRows)) {
+          const normalized = normalizeRows(applyRevisions(currentRows, nextRevisions))
+          revisionResponses.push(await redisRequest(['SET', ROWS_KEY, JSON.stringify(normalized.rows)]))
+        }
+      }
+
+      const allResponses = [...redisResponses, ...revisionResponses]
+
+      if (allResponses.every((redisResponse) => !redisResponse)) {
         sendJson(response, 200, {
           ok: true,
           persisted: false,
@@ -309,10 +437,11 @@ export default async function handler(request, response) {
 
       sendJson(response, 200, {
         ok: true,
-        persisted: redisResponses.every(Boolean),
+        persisted: allResponses.every(Boolean),
         storage: getStorageStatus(),
       })
-    } catch {
+    } catch (error) {
+      console.error('rows:put failed', { message: error instanceof Error ? error.message : String(error) })
       sendJson(response, 500, { error: 'Data kon niet worden opgeslagen.' })
     }
 

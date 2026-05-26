@@ -8,6 +8,7 @@ import path from 'node:path'
 const dataDirectory = path.resolve('data')
 const rowsFile = path.join(dataDirectory, 'planning-overrides.json')
 const planningFile = path.join(dataDirectory, 'planning-data.json')
+const revisionsFile = path.join(dataDirectory, 'planning-revisions.json')
 const UNKNOWN_VALUES = new Set(['', '?', '-'])
 const EQUIPMENT_CANONICAL = {
   UNKNOWN: 'Onbekend',
@@ -105,6 +106,46 @@ function normalizeRows(rows) {
   return { rows: normalizedRows, changed }
 }
 
+function extractRevisions(rows) {
+  if (!Array.isArray(rows)) {
+    return {}
+  }
+
+  return rows.reduce((revisions, row) => {
+    const rowKey = makeRowKey(row)
+    if (rowKey && row?.revision && typeof row.revision === 'object') {
+      revisions[rowKey] = row.revision
+    }
+    return revisions
+  }, {})
+}
+
+function normalizeRevisions(revisions) {
+  if (!revisions || typeof revisions !== 'object' || Array.isArray(revisions)) {
+    return {}
+  }
+
+  return Object.entries(revisions).reduce((normalized, [rowKey, revision]) => {
+    if (cleanValue(rowKey) && revision && typeof revision === 'object') {
+      normalized[cleanValue(rowKey)] = revision
+    }
+    return normalized
+  }, {})
+}
+
+function applyRevisions(rows, revisions) {
+  const normalizedRevisions = normalizeRevisions(revisions)
+  if (!Array.isArray(rows)) {
+    return rows
+  }
+
+  return rows.map((row) => {
+    const rowKey = makeRowKey(row)
+    const revision = normalizedRevisions[rowKey]
+    return revision ? { ...row, revision } : row
+  })
+}
+
 function normalizePlanning(planning) {
   if (!Array.isArray(planning)) {
     return { planning: null, changed: false }
@@ -161,6 +202,19 @@ async function readPlanningFile() {
   return { planning: normalized.planning, persisted: true }
 }
 
+async function readRevisionsFile(fallbackRows) {
+  if (!existsSync(revisionsFile)) {
+    return { revisions: extractRevisions(fallbackRows), persisted: false }
+  }
+
+  const revisions = JSON.parse(await fs.readFile(revisionsFile, 'utf8'))
+  const normalizedRevisions = normalizeRevisions(revisions)
+  return {
+    revisions: Object.keys(normalizedRevisions).length > 0 ? normalizedRevisions : extractRevisions(fallbackRows),
+    persisted: true,
+  }
+}
+
 function persistedRowsPlugin() {
   return {
     name: 'persisted-zandbak-rows',
@@ -182,6 +236,8 @@ function persistedRowsPlugin() {
               }
             }
 
+            const revisions = await readRevisionsFile(rows)
+            rows = applyRevisions(rows, revisions.revisions)
             const planning = await readPlanningFile()
 
             sendJson(response, 200, {
@@ -189,6 +245,7 @@ function persistedRowsPlugin() {
               planning: planning.planning,
               persisted: rowsPersisted,
               planningPersisted: planning.persisted,
+              revisionsPersisted: revisions.persisted,
             })
           } catch {
             sendJson(response, 500, { error: 'Opgeslagen data kon niet worden gelezen.' })
@@ -202,9 +259,10 @@ function persistedRowsPlugin() {
             const body = JSON.parse(await readRequestBody(request))
             const hasRows = Object.hasOwn(body, 'rows')
             const hasPlanning = Object.hasOwn(body, 'planning')
+            const hasRevision = Object.hasOwn(body, 'revision')
 
-            if (!hasRows && !hasPlanning) {
-              sendJson(response, 400, { error: 'rows of planning moet aanwezig zijn.' })
+            if (!hasRows && !hasPlanning && !hasRevision) {
+              sendJson(response, 400, { error: 'rows, planning of revision moet aanwezig zijn.' })
               return
             }
 
@@ -213,11 +271,32 @@ function persistedRowsPlugin() {
               return
             }
 
+            if (
+              hasRevision &&
+              (!body.revision ||
+                typeof body.revision !== 'object' ||
+                !cleanValue(body.revision.rowKey) ||
+                !body.revision.revision ||
+                typeof body.revision.revision !== 'object')
+            ) {
+              sendJson(response, 400, { error: 'revision moet rowKey en revision bevatten.' })
+              return
+            }
+
             await fs.mkdir(dataDirectory, { recursive: true })
+            const currentRows = existsSync(rowsFile)
+              ? normalizeRows(JSON.parse(await fs.readFile(rowsFile, 'utf8'))).rows
+              : []
+            const currentRevisions = (await readRevisionsFile(currentRows)).revisions
+            const protectedRevisions = {
+              ...extractRevisions(currentRows),
+              ...currentRevisions,
+            }
 
             if (hasRows) {
               const normalized = normalizeRows(body.rows)
-              await fs.writeFile(rowsFile, `${JSON.stringify(normalized.rows, null, 2)}\n`, 'utf8')
+              const protectedRows = applyRevisions(normalized.rows, protectedRevisions)
+              await fs.writeFile(rowsFile, `${JSON.stringify(protectedRows, null, 2)}\n`, 'utf8')
             }
 
             if (hasPlanning) {
@@ -228,6 +307,20 @@ function persistedRowsPlugin() {
               }
 
               await fs.writeFile(planningFile, `${JSON.stringify(normalized.planning, null, 2)}\n`, 'utf8')
+            }
+
+            if (hasRevision) {
+              const rowKey = cleanValue(body.revision.rowKey)
+              const nextRevisions = {
+                ...protectedRevisions,
+                [rowKey]: body.revision.revision,
+              }
+              await fs.writeFile(revisionsFile, `${JSON.stringify(nextRevisions, null, 2)}\n`, 'utf8')
+
+              if (Array.isArray(currentRows)) {
+                const normalized = normalizeRows(applyRevisions(currentRows, nextRevisions))
+                await fs.writeFile(rowsFile, `${JSON.stringify(normalized.rows, null, 2)}\n`, 'utf8')
+              }
             }
 
             sendJson(response, 200, { ok: true })
