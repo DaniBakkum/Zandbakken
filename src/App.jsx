@@ -864,6 +864,36 @@ function createPlanningExportRows(planning, rows, boardFilter) {
     }))
 }
 
+function createRevisionExportRows(rows) {
+  return rows
+    .map((row) => {
+      const revision = normalizeRevision(row.revision)
+      const address = [row.street, row.city].map(cleanValue).filter(Boolean).join(', ')
+
+      return {
+        schoolnaam: row.school,
+        instelling: normalizeBoardForExport(row.board),
+        straat: row.street,
+        plaats: row.city,
+        adres: address,
+        latitude: row.location?.lat ?? '',
+        longitude: row.location?.lng ?? '',
+        locatiebron: row.location?.source ?? '',
+        'm3 uit gepland': exportRawValue(row.outgoingRaw),
+        'm3 in gepland': exportRawValue(row.incomingRaw),
+        'materieel gepland': equipmentLabel(row.equipment),
+        'revisie afgerond': revision.completed ? 'Ja' : 'Nee',
+        'm3 uit uitgevoerd': exportRawValue(revision.outgoingRaw),
+        'm3 in uitgevoerd': exportRawValue(revision.incomingRaw),
+        'materieel uitgevoerd': equipmentLabel(revision.equipment),
+        opmerkingen: revision.notes,
+        'afgerond op': revision.completedAt ? formatTimestamp(revision.completedAt) : '',
+        rowKey: row.rowKey,
+      }
+    })
+    .sort((left, right) => left.schoolnaam.localeCompare(right.schoolnaam, 'nl'))
+}
+
 function comparePlanningOverviewEntries(left, right, hasUserLocation) {
   const dateSort = left.item.date.localeCompare(right.item.date, 'nl')
 
@@ -921,6 +951,35 @@ async function downloadPlanningXlsx(exportRows) {
 
   XLSX.utils.book_append_sheet(workbook, sheet, 'Planning')
   XLSX.writeFile(workbook, `zandbak-planning-${todayDateInputValue()}.xlsx`)
+}
+
+async function downloadRevisionXlsx(exportRows) {
+  const XLSX = await import('xlsx')
+  const headers = [
+    'schoolnaam',
+    'instelling',
+    'straat',
+    'plaats',
+    'adres',
+    'latitude',
+    'longitude',
+    'locatiebron',
+    'm3 uit gepland',
+    'm3 in gepland',
+    'materieel gepland',
+    'revisie afgerond',
+    'm3 uit uitgevoerd',
+    'm3 in uitgevoerd',
+    'materieel uitgevoerd',
+    'opmerkingen',
+    'afgerond op',
+    'rowKey',
+  ]
+  const sheet = XLSX.utils.json_to_sheet(exportRows, { header: headers })
+  const workbook = XLSX.utils.book_new()
+
+  XLSX.utils.book_append_sheet(workbook, sheet, 'Revisies')
+  XLSX.writeFile(workbook, `zandbak-revisies-${todayDateInputValue()}.xlsx`)
 }
 
 function sortRows(rows, sortConfig) {
@@ -1032,6 +1091,8 @@ function App() {
   const [planningExportFilter, setPlanningExportFilter] = useState('all')
   const [planningExportError, setPlanningExportError] = useState('')
   const [isPlanningExporting, setIsPlanningExporting] = useState(false)
+  const [revisionExportError, setRevisionExportError] = useState('')
+  const [isRevisionExporting, setIsRevisionExporting] = useState(false)
   const [isPlanningOverviewOpen, setIsPlanningOverviewOpen] = useState(false)
   const [planningOverviewEditDraft, setPlanningOverviewEditDraft] = useState(null)
   const [pendingPlanningEditId, setPendingPlanningEditId] = useState(null)
@@ -1789,6 +1850,28 @@ function App() {
     setIsPlanningExporting(false)
   }
 
+  async function exportRevisions() {
+    if (!isAdmin || isRevisionExporting) {
+      return
+    }
+
+    if (rows.length === 0) {
+      setRevisionExportError('Er zijn geen zandbakken om te exporteren.')
+      return
+    }
+
+    setIsRevisionExporting(true)
+    setRevisionExportError('')
+
+    try {
+      await downloadRevisionXlsx(createRevisionExportRows(rows))
+    } catch {
+      setRevisionExportError('Revisies exporteren naar Excel is mislukt.')
+    } finally {
+      setIsRevisionExporting(false)
+    }
+  }
+
   async function clearPlanning() {
     if (!isAdmin || isPlanningSaving || planning.length === 0) {
       return
@@ -2011,6 +2094,16 @@ function App() {
               Bekijk planning
             </button>
           )}
+          {isAdmin && (
+            <button
+              type="button"
+              className="revision-export-pill"
+              onClick={exportRevisions}
+              disabled={isRevisionExporting}
+            >
+              {isRevisionExporting ? 'Revisies exporteren...' : 'Revisies exporteren'}
+            </button>
+          )}
           <button
             type="button"
             className={`source-pill ${isAdmin ? 'admin-active' : ''}`}
@@ -2019,6 +2112,7 @@ function App() {
           >
             {isAdmin ? 'Admin actief (klik om uit te loggen)' : 'Bron: public/planning-zandbakken.csv'}
           </button>
+          {revisionExportError && <p className="header-action-error">{revisionExportError}</p>}
         </div>
       </header>
 

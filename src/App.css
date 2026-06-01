@@ -38,7 +38,8 @@
 
 .source-pill,
 .planning-pill,
-.overview-pill {
+.overview-pill,
+.revision-export-pill {
   align-items: center;
   appearance: none;
   background: #e0f2fe;
@@ -61,7 +62,8 @@
 
 .source-pill:hover,
 .planning-pill:hover,
-.overview-pill:hover {
+.overview-pill:hover,
+.revision-export-pill:hover {
   background: #dbeafe;
 }
 
@@ -81,10 +83,30 @@
   color: #1e293b;
 }
 
+.revision-export-pill {
+  background: #f8fafc;
+  border-color: #94a3b8;
+  color: #334155;
+}
+
+.revision-export-pill:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
 .source-pill.admin-active {
   background: #dcfce7;
   border-color: #bbf7d0;
   color: #166534;
+}
+
+.header-action-error {
+  color: #b91c1c;
+  flex-basis: 100%;
+  font-size: 13px;
+  font-weight: 800;
+  margin: 0;
+  text-align: right;
 }
 
 .filters,
@@ -1344,10 +1366,15 @@ tbody tr.selected {
     gap: 6px;
   }
 
-  .planning-pill {
+  .planning-pill,
+  .revision-export-pill {
     font-size: 12px;
     min-height: 36px;
     padding: 7px 9px;
+  }
+
+  .header-action-error {
+    text-align: left;
   }
 
   .source-pill {
